@@ -59,10 +59,16 @@ hardware = []
 
 [apps.source]
 type = "ujust"
-# Recipe name confirmed current as of 2026-07 (docs.bazzite.gg + community
-# reports). Still VERIFY check_cmd's marker path on Bazzite.
+# Verified against Bazzite's 82-bazzite-apps.just on 2026-07-30. The recipe
+# is `get-emudeck ACTION=""` (aliased to install-emudeck) and takes
+# status | install | uninstall. Called with no action it opens a menu that
+# needs a terminal, which is why args is required here.
 recipe = "install-emudeck"
-check_cmd = ["test", "-d", "/home/.emudeck"]  # VERIFY marker path
+args = ["install"]
+uninstall_args = ["uninstall"]
+# Mirrors the recipe's own status check: it installs an AppImage into
+# ~/Applications. (The old /home/.emudeck path was never right.)
+check_cmd = ["bash", "-c", 'compgen -G "$HOME/Applications/*EmuDeck*.AppImage" > /dev/null']
 
 [[apps]]
 id = "githublauncher"
@@ -159,14 +165,16 @@ hardware = []
 
 [apps.source]
 type = "ujust"
-# HIGHER RISK than other entries here: Sunshine was removed from Bazzite's
-# base image around 2026-04-29 (Fedora 44 rebase), and there are user
-# reports from March 2026 of "Recipe setup-sunshine failed with exit code 1".
-# The recipe name itself is still correct as of 2026-07 (docs.bazzite.gg),
-# but VERIFY this one installs cleanly before shipping it — it may now
-# require choosing a Flatpak vs Homebrew path interactively, which would
-# need a non-interactive flag or need dropping from the catalog.
+# Verified against Bazzite's 82-bazzite-sunshine.just on 2026-07-30. The
+# recipe takes status | enable | enable-beta | update | disable | uninstall
+# | portal; "enable" installs the Flatpak and enables the user service,
+# which is what Ignis wants. Without an action it opens a menu needing a
+# terminal — that is the "failed with exit code 1" people hit.
 recipe = "setup-sunshine"
+args = ["enable"]
+uninstall_args = ["disable"]
+# The recipe considers Sunshine set up when its user service is enabled.
+check_cmd = ["systemctl", "is-enabled", "--user", "app-dev.lizardbyte.app.Sunshine"]
 
 # ── System ────────────────────────────────────────────────────────────
 

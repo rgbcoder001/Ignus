@@ -59,9 +59,17 @@ class FlathubSource:
 
 @dataclass(frozen=True)
 class UjustSource:
-    """Runs one of Bazzite's built-in ujust recipes."""
+    """Runs one of Bazzite's built-in ujust recipes.
+
+    Bazzite recipes take an action argument (``status | install | uninstall``,
+    or for some recipes ``enable | disable``). Called with no argument they
+    drop into an interactive menu that needs a terminal, which Ignis cannot
+    answer — so ``args`` is how a catalog entry stays unattended.
+    """
 
     recipe: str
+    args: tuple[str, ...] = ()
+    uninstall_args: tuple[str, ...] | None = None
     check_cmd: tuple[str, ...] | None = None
     type: str = "ujust"
 
@@ -214,6 +222,8 @@ def _parse_source(value: Any) -> Source:
     if source_type == "ujust":
         return UjustSource(
             recipe=_require_str(value, "recipe"),
+            args=_parse_args(value.get("args")),
+            uninstall_args=_parse_check_cmd(value.get("uninstall_args")),
             check_cmd=_parse_check_cmd(value.get("check_cmd")),
         )
 
@@ -245,6 +255,13 @@ def _parse_source(value: Any) -> Source:
         )
 
     raise EntryError(f"unknown source type {source_type!r}")
+
+
+def _parse_args(value: Any) -> tuple[str, ...]:
+    """Validate an optional argument list, defaulting to no arguments."""
+    if value is None:
+        return ()
+    return _parse_check_cmd(value) or ()
 
 
 def _parse_check_cmd(value: Any) -> tuple[str, ...] | None:

@@ -25,3 +25,17 @@ def test_shipped_catalog_ids_are_unique():
     apps = load_catalog(paths.catalog_path())
     ids = [app.id for app in apps]
     assert len(ids) == len(set(ids))
+
+
+def test_every_ujust_entry_specifies_a_non_interactive_action():
+    """A ujust recipe with no action opens a menu needing a terminal, which
+    Ignis cannot answer — it either fails or, worse, exits 0 having done
+    nothing. Every shipped recipe must name its action explicitly."""
+    from ignis.core.catalog import UjustSource
+
+    for app in load_catalog(paths.catalog_path()):
+        if isinstance(app.source, UjustSource):
+            assert app.source.args, (
+                f"{app.id} runs `ujust {app.source.recipe}` with no action "
+                "and would drop into an interactive menu"
+            )

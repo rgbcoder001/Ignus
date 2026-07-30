@@ -76,6 +76,16 @@
   -->
 
   <releases>
+    <release version="0.1.2" date="2026-07-30">
+      <description>
+        <p>Fixes installing on Bazzite.</p>
+        <ul>
+          <li>Flathub installs failed because the flathub remote exists in both the user and system installations; Ignis now says which one to use.</li>
+          <li>Bazzite recipes (EmuDeck, Sunshine) opened a menu that needed a terminal; Ignis now runs them with an explicit action.</li>
+          <li>A recipe that printed a menu error but exited successfully is no longer reported as an install that worked.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-07-30">
       <description>
         <p>CI maintenance: updated GitHub Actions dependencies to versions

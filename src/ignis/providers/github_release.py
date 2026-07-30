@@ -29,7 +29,6 @@ from ignis.providers.github_api import (
     GithubClient,
     Release,
     ReleaseError,
-    download_asset,
     select_asset,
 )
 
@@ -112,7 +111,7 @@ class GithubReleaseProvider(Provider):
 
         staging = self.install_dir / ".download"
         try:
-            archive = download_asset(asset, staging / asset.name, on_line)
+            archive = self.client.download(asset, staging / asset.name, on_line)
             installed_files = self._place_files(archive, on_line)
         except ReleaseError as exc:
             shutil.rmtree(staging, ignore_errors=True)

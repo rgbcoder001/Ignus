@@ -77,7 +77,7 @@ matters.
 
 - [ ] **The app ID must match the repository owner.** Ignis uses
       `io.github.rgbcoder001.Ignis`, which requires the repo to live at
-      `github.com/rgbcoder001/ignis`. If it moves, the ID has to change in
+      `github.com/rgbcoder001/Ignus`. If it moves, the ID has to change in
       the manifest, desktop file, metainfo, `src/ignis/__init__.py`, and the
       `.desktop`/icon filenames — `tests/test_packaging.py` checks they stay
       consistent.
@@ -115,7 +115,7 @@ for that permission is far worse than explaining it up front.
    ```yaml
    sources:
      - type: git
-       url: https://github.com/rgbcoder001/ignis.git
+       url: https://github.com/rgbcoder001/Ignus.git
        tag: v0.1.0
        commit: <full sha of that tag>
    ```

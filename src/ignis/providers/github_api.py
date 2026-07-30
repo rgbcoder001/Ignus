@@ -196,6 +196,15 @@ class GithubClient:
 
         raise ReleaseError(f"GitHub returned HTTP {exc.code} for {repo}") from exc
 
+    def download(self, asset: Asset, destination: Path, on_line: LineCallback) -> Path:
+        """Download ``asset`` using this client's transport.
+
+        Callers go through here rather than :func:`download_asset` directly so
+        that one place owns the HTTP transport — which is also what lets tests
+        stub downloads instead of reaching the network.
+        """
+        return download_asset(asset, destination, on_line, opener=self._opener)
+
     def _store_cache(self, repo: str, etag: str, payload: dict[str, Any]) -> None:
         """Persist the response. A cache write failure must not fail the fetch."""
         self._state.set_cache(repo, etag, payload)

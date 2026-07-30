@@ -36,8 +36,8 @@
     <name>Billy Walters</name>
   </developer>
 
-  <url type="homepage">https://github.com/rgbcoder001/ignis</url>
-  <url type="bugtracker">https://github.com/rgbcoder001/ignis/issues</url>
+  <url type="homepage">https://github.com/rgbcoder001/Ignus</url>
+  <url type="bugtracker">https://github.com/rgbcoder001/Ignus/issues</url>
 
   <content_rating type="oars-1.1"/>
 
@@ -69,13 +69,23 @@
 
     <screenshots>
       <screenshot type="default">
-        <image>https://raw.githubusercontent.com/rgbcoder001/ignis/main/data/screenshots/browse.png</image>
+        <image>https://raw.githubusercontent.com/rgbcoder001/Ignus/main/data/screenshots/browse.png</image>
         <caption>Browsing the app catalog</caption>
       </screenshot>
     </screenshots>
   -->
 
   <releases>
+    <release version="0.2.0" date="2026-07-30">
+      <description>
+        <p>Keeping things up to date, and showing what your machine is.</p>
+        <ul>
+          <li>Ignis now checks for its own new versions and can update itself, instead of needing a manual download.</li>
+          <li>Apps installed from Flathub are now checked for updates too, not just those from GitHub.</li>
+          <li>The main screen now shows your actual graphics card, processor, memory and system version.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.2" date="2026-07-30">
       <description>
         <p>Fixes installing on Bazzite.</p>

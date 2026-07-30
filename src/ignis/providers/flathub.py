@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import shlex
 
 from ignis.core.host import CommandError, HostBridge
 from ignis.providers.base import InstallError, InstallStatus, LineCallback, Provider
+
+log = logging.getLogger(__name__)
 
 FLATHUB_REMOTE = "flathub"
 
@@ -43,6 +46,41 @@ def installed_scope(bridge: HostBridge, ref: str) -> str | None:
         if bridge.check(["flatpak", "info", scope, ref], timeout=15):
             return scope
     return None
+
+
+def parse_application_column(output: str) -> set[str]:
+    """App ids from `flatpak remote-ls --columns=application` output."""
+    refs: set[str] = set()
+    for line in output.splitlines():
+        value = line.strip()
+        # flatpak prints a header when attached to a terminal, not otherwise.
+        if not value or value.lower() == "application":
+            continue
+        refs.add(value.split()[0])
+    return refs
+
+
+def updatable_refs(bridge: HostBridge) -> frozenset[str]:
+    """Every installed Flatpak with a newer version available.
+
+    One command per installation covers the whole catalog, rather than a
+    per-app query. This talks to the remotes, so it belongs behind an
+    explicit refresh, never in a status() call.
+    """
+    refs: set[str] = set()
+    for scope in (USER_SCOPE, SYSTEM_SCOPE):
+        result = bridge.run(
+            ["flatpak", "remote-ls", "--updates", scope, "--columns=application"],
+            timeout=300,
+            check=False,
+        )
+        if result.ok:
+            refs.update(parse_application_column(result.output))
+        else:
+            log.info(
+                "could not list %s updates (exit %d)", scope, result.returncode
+            )
+    return frozenset(refs)
 
 
 class FlathubProvider(Provider):
@@ -98,6 +136,24 @@ class FlathubProvider(Provider):
         except CommandError as exc:
             raise InstallError(
                 f"Uninstalling {self.app.name} failed with exit code {exc.result.returncode}",
+                result=exc.result,
+            ) from exc
+
+    def update(self, on_line: LineCallback) -> None:
+        """Update the app in whichever installation it lives in."""
+        scope = installed_scope(self.bridge, self.ref)
+        if scope is None:
+            raise InstallError(f"{self.app.name} doesn't appear to be installed.")
+        try:
+            self.bridge.run(
+                ["flatpak", "update", "-y", "--noninteractive", scope, self.ref],
+                on_line=on_line,
+                timeout=None,
+                check=True,
+            )
+        except CommandError as exc:
+            raise InstallError(
+                f"Updating {self.app.name} failed with exit code {exc.result.returncode}",
                 result=exc.result,
             ) from exc
 

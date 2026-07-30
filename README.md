@@ -15,7 +15,7 @@ up a machine without help.
 ## Installing Ignis
 
 1. Download `ignis.flatpak` from the
-   [latest release](https://github.com/rgbcoder001/ignis/releases/latest).
+   [latest release](https://github.com/rgbcoder001/Ignus/releases/latest).
 2. Double-click the downloaded file. Your software store opens with an
    **Install** button.
 3. Launch **Ignis** from your applications menu.
@@ -35,9 +35,12 @@ category at a time — Gaming, Emulation, Media, Streaming or System.
 - **A badge like `AMD`** means an app is built for that graphics card. If it
   doesn't match yours, Ignis says so but still lets you install it — hardware
   detection isn't perfect and you may know better.
-- **The Updates button** (top right) covers apps Ignis downloaded straight
-  from GitHub. Everything from Flathub or Bazzite updates itself through the
-  system, so it isn't repeated here.
+- **The Updates button** (top right) checks everything: Ignis itself, apps
+  downloaded from GitHub, and apps from Flathub. Ignis can update itself in
+  place, so you never have to download it by hand again.
+- **The top of the main screen** shows what the machine actually is — your
+  graphics card, processor, memory and system version — which is the first
+  thing worth knowing when picking apps or reporting a problem.
 
 Every installation shows the exact command being run before it runs, streams
 the live output while it works, and writes everything to a log. If something

@@ -22,8 +22,8 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from ignis import APP_ID, APP_NAME, __version__
-from ignis.core import paths
+from ignis import APP_ID, APP_NAME, PROJECT_URL, __version__
+from ignis.core import hardware, paths, sysinfo
 from ignis.core.catalog import App, Category
 from ignis.core.host import HostBridge
 from ignis.core.state import State
@@ -181,9 +181,11 @@ class BrowseView(Adw.NavigationPage):
 
         self._start_host_check()
         self._start_status_checks()
+        if apps:
+            self._start_system_info()
 
     def _build_catalog_page(self, apps: list[App]) -> Gtk.Widget:
-        """The filter chips plus the (filterable) boxed list of app rows."""
+        """System summary, filter chips, then the boxed list of app rows."""
         self._list_box = Gtk.ListBox(
             css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE
         )
@@ -192,6 +194,8 @@ class BrowseView(Adw.NavigationPage):
             self._list_box.append(self._build_row(app))
 
         page = Adw.PreferencesPage()
+        page.add(self._build_system_group())
+
         filter_group = Adw.PreferencesGroup()
         filter_group.add(self._build_category_filter())
         page.add(filter_group)
@@ -200,6 +204,63 @@ class BrowseView(Adw.NavigationPage):
         list_group.add(self._list_box)
         page.add(list_group)
         return page
+
+    def _build_system_group(self) -> Adw.PreferencesGroup:
+        """What this machine is, in the user's own words.
+
+        Filled in asynchronously: the GPU model and host OS need commands run
+        on the host, which must not block the window opening.
+        """
+        group = Adw.PreferencesGroup(title="Your system")
+
+        self._graphics_row = Adw.ActionRow(
+            title="Graphics", subtitle="Checking…", css_classes=["property"]
+        )
+        self._graphics_row.add_prefix(
+            Gtk.Image(icon_name="video-display-symbolic", pixel_size=24)
+        )
+        for vendor in sorted(self._vendors):
+            self._graphics_row.add_suffix(
+                badge(hardware.label(vendor), "accent", tooltip="Detected graphics vendor")
+            )
+
+        self._processor_row = Adw.ActionRow(
+            title="Processor", subtitle="Checking…", css_classes=["property"]
+        )
+        self._processor_row.add_prefix(
+            Gtk.Image(icon_name="processor-symbolic", pixel_size=24)
+        )
+
+        self._system_row = Adw.ActionRow(
+            title="System", subtitle="Checking…", css_classes=["property"]
+        )
+        self._system_row.add_prefix(
+            Gtk.Image(icon_name="computer-symbolic", pixel_size=24)
+        )
+
+        group.add(self._graphics_row)
+        group.add(self._processor_row)
+        group.add(self._system_row)
+        return group
+
+    def _start_system_info(self) -> None:
+        """Collect hardware details off the main thread."""
+
+        def worker() -> None:
+            info = sysinfo.gather(self._bridge, self._vendors)
+            GLib.idle_add(self._apply_system_info, info)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_system_info(self, info: sysinfo.SystemInfo) -> bool:
+        """Show the gathered details. Runs on the main loop."""
+        self._graphics_row.set_subtitle(info.graphics_summary or "Could not be detected")
+        self._processor_row.set_subtitle(info.processor or "Could not be detected")
+
+        memory = f" · {info.memory} memory" if info.memory else ""
+        system = info.operating_system or "Could not be detected"
+        self._system_row.set_subtitle(f"{system}{memory} · Ignis {__version__}")
+        return GLib.SOURCE_REMOVE
 
     def _build_row(self, app: App) -> AppRow:
         """Build one app row, marking it unsupported if it has no provider."""
@@ -305,8 +366,8 @@ class BrowseView(Adw.NavigationPage):
             application_icon=APP_ID,
             version=__version__,
             comments="One-stop app installer for Bazzite.",
-            website="https://github.com/rgbcoder001/ignis",
-            issue_url="https://github.com/rgbcoder001/ignis/issues",
+            website=PROJECT_URL,
+            issue_url=f"{PROJECT_URL}/issues",
             license_type=Gtk.License.MIT_X11,
         ).present(self)
 

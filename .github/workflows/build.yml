@@ -34,6 +34,15 @@ jobs:
 
       - name: Build Flatpak
         # TODO: pin to a commit SHA once the first green build lands.
+        #
+        # Known, tracked Node 20 deprecation warning here (checked
+        # 2026-07-30): this action has no tagged releases at all, only this
+        # floating @master ref, and @master still declares node20 in its own
+        # action.yml. There is nothing to bump to. It's a harmless warning
+        # until GitHub Actions removes node20 support on 2026-09-16 -
+        # revisit then if flathub-infra hasn't updated it by choice, since
+        # checkout/setup-python/action-gh-release above are already on
+        # node24.
         uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
         with:
           bundle: ignis.flatpak

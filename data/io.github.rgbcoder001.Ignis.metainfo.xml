@@ -76,6 +76,13 @@
   -->
 
   <releases>
+    <release version="0.1.1" date="2026-07-30">
+      <description>
+        <p>CI maintenance: updated GitHub Actions dependencies to versions
+        that run on Node.js 24, ahead of Node.js 20's removal from GitHub
+        Actions runners. No user-facing changes.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-07-30">
       <description>
         <p>First release.</p>

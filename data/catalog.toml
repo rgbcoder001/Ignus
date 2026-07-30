@@ -1,0 +1,209 @@
+# Ignis app catalog — data only, no code.
+# Schema: SPEC.md §4.2. One bad entry is skipped with a logged warning.
+#
+# !! Every entry below is a SEED and must be verified on a real Bazzite
+# !! machine during Phase 2: check Flathub refs on flathub.org, and check
+# !! ujust recipe names against `ujust` output on current Bazzite.
+
+# ── Gaming ────────────────────────────────────────────────────────────
+
+[[apps]]
+id = "heroic"
+name = "Heroic Games Launcher"
+summary = "Play your Epic, GOG and Amazon games"
+description = """Open-source launcher for Epic Games Store, GOG and Amazon \
+Prime Gaming libraries, with built-in Proton/Wine management."""
+category = "gaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.heroicgameslauncher.hgl"
+
+[[apps]]
+id = "bottles"
+name = "Bottles"
+summary = "Run Windows software and games"
+description = """Run Windows applications in isolated, preconfigured \
+environments (bottles) using Wine."""
+category = "gaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.usebottles.bottles"
+
+[[apps]]
+id = "protonup-qt"
+name = "ProtonUp-Qt"
+summary = "Install GE-Proton and other compatibility tools"
+description = """Install and manage GE-Proton, Luxtorpeda and other Steam \
+compatibility tools with a couple of clicks."""
+category = "gaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "net.davidotek.pupgui2"
+
+# ── Emulation ─────────────────────────────────────────────────────────
+
+[[apps]]
+id = "emudeck"
+name = "EmuDeck"
+summary = "All-in-one emulation setup"
+description = """Installs and configures a full retro-emulation environment \
+using Bazzite's built-in recipe."""
+category = "emulation"
+hardware = []
+
+[apps.source]
+type = "ujust"
+# Recipe name confirmed current as of 2026-07 (docs.bazzite.gg + community
+# reports). Still VERIFY check_cmd's marker path on Bazzite.
+recipe = "install-emudeck"
+check_cmd = ["test", "-d", "/home/.emudeck"]  # VERIFY marker path
+
+[[apps]]
+id = "githublauncher"
+name = "GitHub Launcher"
+summary = "Install and update recompiled/decompiled PC ports"
+description = """Manages games and apps published on GitHub — including the \
+recomp and decomp PC ports such as Zelda 64: Recompiled — downloading them \
+and keeping them updated. Ignis installs the launcher itself; you pick the \
+games from inside it.
+
+Ports built this way need you to legally provide your own copy of the \
+original game."""
+category = "emulation"
+hardware = []
+
+[apps.source]
+type = "github"
+repo = "SirDiabo/GithubLauncher"
+# Verified against the real v1.73 release on 2026-07-30: matches exactly one
+# asset (GitHubLauncher-v1.73-Linux-X64.zip); the ARM64 and Windows builds
+# correctly do not match. If upstream renames these, Ignis fails loudly and
+# names every asset it saw rather than guessing.
+#
+# The Linux build is a self-contained single-file .NET publish (the runtime
+# is embedded in the 83 MB executable - confirmed, no separate .dll files),
+# so it needs NO .NET installation on Bazzite. Its three sibling .so files
+# are Avalonia's native deps and must be extracted alongside it.
+asset_pattern = 'linux-x64\.zip$'
+install_kind = "zip"
+
+# ── Media ─────────────────────────────────────────────────────────────
+
+[[apps]]
+id = "mpv"
+name = "mpv"
+summary = "Lightweight video player that plays everything"
+description = """Minimal, high-quality media player with excellent codec \
+support and hardware decoding."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "io.mpv.Mpv"
+
+[[apps]]
+id = "handbrake"
+name = "HandBrake"
+summary = "Convert videos to smaller files"
+description = """Video transcoder for converting media into modern, \
+space-efficient formats."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "fr.handbrake.ghb"
+
+[[apps]]
+id = "jellyfin-player"
+name = "Jellyfin Media Player"
+summary = "Watch your Jellyfin library on this machine"
+description = """Desktop client for the Jellyfin media server."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.github.iwalton3.jellyfin-media-player"
+
+# ── Streaming ─────────────────────────────────────────────────────────
+
+[[apps]]
+id = "obs"
+name = "OBS Studio"
+summary = "Record your screen and stream"
+description = """Industry-standard software for screen recording and live \
+streaming, with hardware-encoder support."""
+category = "streaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.obsproject.Studio"
+
+[[apps]]
+id = "sunshine"
+name = "Sunshine game streaming"
+summary = "Stream games from this PC to other devices (pairs with Moonlight)"
+description = """Self-hosted game-stream server using Bazzite's built-in \
+setup recipe. Use the Moonlight app on the receiving device."""
+category = "streaming"
+hardware = []
+
+[apps.source]
+type = "ujust"
+# HIGHER RISK than other entries here: Sunshine was removed from Bazzite's
+# base image around 2026-04-29 (Fedora 44 rebase), and there are user
+# reports from March 2026 of "Recipe setup-sunshine failed with exit code 1".
+# The recipe name itself is still correct as of 2026-07 (docs.bazzite.gg),
+# but VERIFY this one installs cleanly before shipping it — it may now
+# require choosing a Flatpak vs Homebrew path interactively, which would
+# need a non-interactive flag or need dropping from the catalog.
+recipe = "setup-sunshine"
+
+# ── System ────────────────────────────────────────────────────────────
+
+[[apps]]
+id = "lact"
+name = "LACT"
+summary = "AMD GPU control panel (fans, clocks, power)"
+description = """Monitor and tune AMD Radeon GPUs: fan curves, power limits \
+and clock profiles."""
+category = "system"
+hardware = ["amd"]
+
+[apps.source]
+type = "flathub"
+ref = "io.github.ilya_zlobintsev.LACT"
+
+[[apps]]
+id = "coolercontrol"
+name = "CoolerControl"
+summary = "Fan and cooling control"
+description = """Monitor temperatures and control fans, pumps and RGB on \
+supported hardware."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "org.coolercontrol.CoolerControl"
+
+[[apps]]
+id = "discord"
+name = "Discord"
+summary = "Voice, video and text chat"
+description = """Chat app for communities and friends."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.discordapp.Discord"

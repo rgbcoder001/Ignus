@@ -1,0 +1,25 @@
+[project]
+name = "ignis"
+version = "0.1.0"
+description = "One-stop app installer for Bazzite"
+requires-python = ">=3.12"
+# Zero runtime dependencies by design — stdlib + PyGObject (from the GNOME
+# Flatpak runtime) only. See CLAUDE.md hard rule 1.
+dependencies = []
+
+[project.optional-dependencies]
+# Dev/CI only. pyyaml is used solely to validate the Flatpak manifest in
+# tests — it is never imported by the application.
+dev = ["pytest", "pyyaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets `pytest` work in a fresh checkout without installing the package.
+pythonpath = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

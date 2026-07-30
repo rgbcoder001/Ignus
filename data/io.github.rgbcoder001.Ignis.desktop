@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Ignis
+GenericName=App Installer
+Comment=Install and set up gaming and media apps for Bazzite
+Exec=ignis
+Icon=io.github.rgbcoder001.Ignis
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=install;setup;apps;games;flatpak;bazzite;emulation;streaming;
+StartupNotify=true

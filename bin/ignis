@@ -1,0 +1,4 @@
+#!/bin/sh
+# Launcher for the packaged Flatpak build.
+# The Python package is installed at /app/lib/ignis/ignis by the manifest.
+exec env PYTHONPATH="/app/lib/ignis${PYTHONPATH:+:$PYTHONPATH}" python3 -m ignis "$@"

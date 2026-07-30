@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.rgbcoder001.Ignis</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Ignis</name>
+  <summary>Install and set up apps for Bazzite</summary>
+
+  <description>
+    <p>
+      Ignis is a one-stop installer for Bazzite. It detects your graphics
+      hardware and offers a curated list of gaming, emulation, media and
+      streaming applications that can each be installed with a single click,
+      without ever opening a terminal.
+    </p>
+    <p>
+      Ignis installs software on your behalf. To do that it runs standard
+      package commands on the host system — such as installing Flatpaks from
+      Flathub or running Bazzite's own setup recipes — and it always shows you
+      the exact command it is about to run, streams the live output, and keeps
+      a full log you can read afterwards.
+    </p>
+    <p>Applications can come from:</p>
+    <ul>
+      <li>Flathub</li>
+      <li>Bazzite's built-in setup recipes</li>
+      <li>GitHub releases, with automatic update checks</li>
+      <li>Vetted configuration scripts bundled with Ignis</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.rgbcoder001.Ignis.desktop</launchable>
+
+  <developer id="io.github.rgbcoder001">
+    <name>Billy Walters</name>
+  </developer>
+
+  <url type="homepage">https://github.com/rgbcoder001/ignis</url>
+  <url type="bugtracker">https://github.com/rgbcoder001/ignis/issues</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>System</category>
+    <category>Settings</category>
+  </categories>
+
+  <keywords>
+    <keyword>install</keyword>
+    <keyword>setup</keyword>
+    <keyword>bazzite</keyword>
+    <keyword>games</keyword>
+    <keyword>emulation</keyword>
+  </keywords>
+
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <!--
+    TODO (Phase 5): Flathub requires at least one screenshot. Capture the
+    browse view on the Bazzite machine, commit it, and add:
+
+    <screenshots>
+      <screenshot type="default">
+        <image>https://raw.githubusercontent.com/rgbcoder001/ignis/main/data/screenshots/browse.png</image>
+        <caption>Browsing the app catalog</caption>
+      </screenshot>
+    </screenshots>
+  -->
+
+  <releases>
+    <release version="0.1.0" date="2026-07-30">
+      <description>
+        <p>First release.</p>
+        <ul>
+          <li>Browse a curated catalog of gaming, emulation, media, streaming and system apps.</li>
+          <li>Install from Flathub, Bazzite's own setup recipes, GitHub releases, or bundled setup scripts.</li>
+          <li>See the exact command before it runs, watch its output live, and keep a full log.</li>
+          <li>Check for and apply updates to apps installed from GitHub.</li>
+          <li>Graphics card detection, so apps meant for other hardware are marked.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>

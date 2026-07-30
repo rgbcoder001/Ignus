@@ -1,0 +1,7 @@
+# Ignis targets Linux but is developed on Windows. Force LF everywhere so a
+# CRLF shebang can never produce "bad interpreter" inside the Flatpak.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.flatpak binary

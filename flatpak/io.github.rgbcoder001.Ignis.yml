@@ -1,0 +1,73 @@
+# Flatpak manifest for Ignis.
+#
+# Build and install locally:
+#   flatpak-builder --user --install --force-clean build \
+#       flatpak/io.github.rgbcoder001.Ignis.yml
+# Produce a double-clickable bundle:
+#   flatpak build-bundle repo ignis.flatpak io.github.rgbcoder001.Ignis
+#
+# There is no compilation step: the GNOME runtime already provides Python 3,
+# PyGObject, GTK 4 and libadwaita, and Ignis has zero pip dependencies. That
+# is deliberate — it is what keeps the launch path unbreakable.
+
+app-id: io.github.rgbcoder001.Ignis
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: ignis
+
+finish-args:
+  # GitHub API queries and release downloads.
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Ignis exists to install software on the user's behalf. This permission is
+  # what allows flatpak-spawn --host to run flatpak/ujust/rpm-ostree commands
+  # on the host system; without it every install fails with a confusing error.
+  - --talk-name=org.freedesktop.Flatpak
+
+  # Where GitHub-sourced apps (AppImages, tarballs) are installed, plus the
+  # real user launcher and icon directories so those apps appear in the menu.
+  # xdg-data/* is exposed at its real path under $HOME inside the sandbox --
+  # see core/paths.py:desktop_entries_dir().
+  - --filesystem=~/Applications:create
+  - --filesystem=xdg-data/applications:create
+  - --filesystem=xdg-data/icons:create
+
+cleanup:
+  - '*.pyc'
+  - '*.pyo'
+
+modules:
+  - name: ignis
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 bin/ignis /app/bin/ignis
+
+      - mkdir -p /app/lib/ignis
+      - cp -r src/ignis /app/lib/ignis/
+      - find /app/lib/ignis -name __pycache__ -type d -prune -exec rm -rf {} +
+
+      - mkdir -p /app/share/ignis
+      - cp data/catalog.toml /app/share/ignis/catalog.toml
+      - cp -r data/icons /app/share/ignis/icons
+      - cp -r scripts /app/share/ignis/scripts
+
+      - install -Dm644 data/io.github.rgbcoder001.Ignis.desktop
+        -t /app/share/applications/
+      - install -Dm644 data/io.github.rgbcoder001.Ignis.metainfo.xml
+        -t /app/share/metainfo/
+      - install -Dm644 data/io.github.rgbcoder001.Ignis.svg
+        -t /app/share/icons/hicolor/scalable/apps/
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - .flatpak-builder
+          - .pytest_cache
+          - build
+          - repo

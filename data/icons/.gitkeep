@@ -1,0 +1,2 @@
+# Catalog app icons (64px PNG, named to match an entry's `icon` field).
+# Kept in git so the Flatpak build's `cp -r data/icons` always has a source.

@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
+SETTING_KEY_PATTERN = re.compile(r"[a-z][a-z0-9_]*")
 
 #: GPU vendors an app may be restricted to.
 VENDORS = frozenset({"amd", "nvidia", "intel"})
@@ -103,7 +104,36 @@ class ScriptSource:
     type: str = "script"
 
 
-Source = FlathubSource | UjustSource | GithubSource | ScriptSource
+@dataclass(frozen=True)
+class ContainerSource:
+    """Runs a service as a rootless Podman container via a Quadlet unit."""
+
+    image: str
+    port: int
+    volumes: tuple[str, ...] = ()
+    environment: tuple[str, ...] = ()
+    type: str = "container"
+
+
+Source = FlathubSource | UjustSource | GithubSource | ScriptSource | ContainerSource
+
+
+class SettingType(StrEnum):
+    """Kinds of answer an app can ask the user for before installing."""
+
+    TEXT = "text"
+    PATH = "path"
+
+
+@dataclass(frozen=True)
+class Setting:
+    """One question an app needs answered before it can be installed."""
+
+    key: str
+    label: str
+    type: SettingType = SettingType.TEXT
+    default: str = ""
+    help: str = ""
 
 
 @dataclass(frozen=True)
@@ -119,6 +149,7 @@ class App:
     hardware: frozenset[str] = field(default_factory=frozenset)
     icon: str | None = None
     post_install: str | None = None
+    settings: tuple[Setting, ...] = ()
 
     def supports(self, vendors: frozenset[str]) -> bool:
         """True if this app applies to the detected GPU vendors.
@@ -185,6 +216,7 @@ def _parse_app(entry: Any) -> App:
 
     hardware = _parse_hardware(entry.get("hardware", []))
     source = _parse_source(entry.get("source"))
+    settings = _parse_settings(entry.get("settings"))
 
     return App(
         id=app_id,
@@ -196,7 +228,45 @@ def _parse_app(entry: Any) -> App:
         icon=_optional_str(entry, "icon"),
         post_install=_optional_str(entry, "post_install"),
         source=source,
+        settings=settings,
     )
+
+
+def _parse_settings(value: Any) -> tuple[Setting, ...]:
+    """Validate the optional [[apps.settings]] questions."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise EntryError("settings must be a list")
+
+    settings: list[Setting] = []
+    seen: set[str] = set()
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise EntryError("each setting must be a table")
+        key = _require_str(raw, "key")
+        if not SETTING_KEY_PATTERN.fullmatch(key):
+            raise EntryError(f"setting key {key!r} must be lower_snake_case")
+        if key in seen:
+            raise EntryError(f"duplicate setting key {key!r}")
+        seen.add(key)
+
+        type_value = _optional_str(raw, "type") or SettingType.TEXT.value
+        try:
+            setting_type = SettingType(type_value)
+        except ValueError:
+            raise EntryError(f"unknown setting type {type_value!r}") from None
+
+        settings.append(
+            Setting(
+                key=key,
+                label=_require_str(raw, "label"),
+                type=setting_type,
+                default=_optional_str(raw, "default") or "",
+                help=_optional_str(raw, "help") or "",
+            )
+        )
+    return tuple(settings)
 
 
 def _parse_hardware(value: Any) -> frozenset[str]:
@@ -243,6 +313,17 @@ def _parse_source(value: Any) -> Source:
         except ValueError:
             raise EntryError(f"unknown install_kind {kind_value!r}") from None
         return GithubSource(repo=repo, asset_pattern=pattern, install_kind=kind)
+
+    if source_type == "container":
+        port = value.get("port")
+        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            raise EntryError(f"container port {port!r} is not a valid port number")
+        return ContainerSource(
+            image=_require_str(value, "image"),
+            port=port,
+            volumes=_parse_args(value.get("volumes")),
+            environment=_parse_args(value.get("environment")),
+        )
 
     if source_type == "script":
         script = _require_str(value, "file")

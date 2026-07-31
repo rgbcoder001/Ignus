@@ -209,6 +209,87 @@ type = "flathub"
 ref = "fr.handbrake.ghb"
 
 [[apps]]
+id = "nas-mount"
+name = "Connect to a NAS"
+summary = "Reach the files on your network drive from this PC"
+description = """Connects this computer to a network drive (a NAS) so its \
+films, music, books and photos appear as an ordinary folder you can open, \
+add to and tidy up like any other.
+
+The connection is remembered, so it comes back on its own after a restart. \
+It also connects only when something actually reads the folder, which means \
+a NAS that is switched off or asleep never holds up your computer starting.
+
+Before installing this, turn on NFS on the NAS and allow this computer's \
+address. On a Synology that is Control Panel, then File Services, then NFS; \
+and then NFS Permissions on the shared folder. You will need the mount path \
+it shows you, which looks like /volume1/Media."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "script"
+file = "nas-mount.sh"
+# {mount_point} is filled in from the user's answer. Before they have
+# answered it stays literal, the command fails, and the app correctly reads
+# as not installed.
+check_cmd = ["bash", "-c", 'systemctl is-enabled "$(systemd-escape --path --suffix=automount "{mount_point}")" >/dev/null 2>&1']
+
+[[apps.settings]]
+key = "nas_host"
+label = "NAS address"
+type = "text"
+default = ""
+help = "The IP address of your NAS, for example 192.168.1.50"
+
+[[apps.settings]]
+key = "export_path"
+label = "Folder on the NAS"
+type = "path"
+default = ""
+help = "The mount path shown in the NAS's NFS Permissions window, for example /volume1/Media"
+
+[[apps.settings]]
+key = "mount_point"
+label = "Show it on this PC as"
+type = "path"
+default = "/mnt/nas"
+help = "Where the NAS appears locally. /mnt/nas suits most people."
+
+[[apps]]
+id = "komga"
+name = "Komga"
+summary = "Your own server for comics, manga and e-books"
+description = """Turns this computer into a library for your comics, manga \
+and e-books. You read them in a web browser — on this PC, a tablet, or a \
+phone — and Komga keeps track of what you have read and where you got to.
+
+Unlike most things here, Komga has no window of its own: it runs quietly in \
+the background and you use it through your browser. Ignis sets it up to \
+start on its own and gives you a link to open it.
+
+Point it at the folder holding your books. If those live on a NAS, connect \
+to that first — Komga can only read what this computer can already see. \
+Komga reads your files and never changes them."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "container"
+image = "docker.io/gotson/komga:latest"
+port = 25600
+# Read-only on purpose: Komga only ever reads your library, and keeps its own
+# database in the config volume Ignis creates for it.
+volumes = ["{books_dir}:/books:ro"]
+
+[[apps.settings]]
+key = "books_dir"
+label = "Where your books are"
+type = "path"
+default = "/mnt/nas"
+help = "The folder holding your comics and e-books. Use the NAS folder if you connected one."
+
+[[apps]]
 id = "handbrake-av1-presets"
 name = "AV1 presets for HandBrake"
 summary = "Ready-made high-quality AV1 conversion settings"

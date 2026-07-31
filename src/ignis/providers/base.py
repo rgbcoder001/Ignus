@@ -6,7 +6,9 @@ provider may import ``subprocess`` directly (CLAUDE.md hard rule 2).
 
 from __future__ import annotations
 
+import base64
 import logging
+import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum, auto
@@ -125,6 +127,48 @@ class Provider(ABC):
             run_bundled_script(self.bridge, self.app.post_install, on_line)
 
 
+def substitute(text: str, values: dict[str, str]) -> str:
+    """Replace ``{key}`` placeholders with the user's answers.
+
+    Plain replacement rather than str.format: catalog text and unit files
+    contain braces of their own, and format() would choke on them.
+    """
+    for key, value in values.items():
+        text = text.replace("{" + key + "}", value)
+    return text
+
+
+def shell_preamble(values: dict[str, str]) -> str:
+    """Shell assignments making the user's answers available to a script.
+
+    Values are quoted with shlex, so a stray quote or space in an answer
+    cannot break out into the surrounding script.
+    """
+    if not values:
+        return ""
+    lines = [f"{key}={shlex.quote(value)}" for key, value in sorted(values.items())]
+    return "\n".join(lines) + "\n"
+
+
+def write_host_file(bridge: HostBridge, path: Path, content: str) -> None:
+    """Write a file on the host, creating parent directories.
+
+    The content is base64'd on the way over rather than interpolated into a
+    heredoc: it can then contain any characters at all — quotes, backslashes,
+    or a line that happens to match the heredoc terminator — without the
+    command needing to be escaped correctly.
+    """
+    encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    command = (
+        f"mkdir -p {shlex.quote(str(path.parent))} && "
+        f"printf %s {shlex.quote(encoded)} | base64 -d > {shlex.quote(str(path))}"
+    )
+    try:
+        bridge.run(["bash", "-c", command], timeout=60, check=True)
+    except CommandError as exc:
+        raise InstallError(f"Could not write {path}: {exc.result.tail(3)}", result=exc.result) from exc
+
+
 def resolve_script(relative_path: str) -> Path:
     """Resolve a catalog script reference to a real path.
 
@@ -139,7 +183,12 @@ def resolve_script(relative_path: str) -> Path:
     return paths.scripts_dir().joinpath(*parts)
 
 
-def run_bundled_script(bridge: HostBridge, relative_path: str, on_line: LineCallback) -> None:
+def run_bundled_script(
+    bridge: HostBridge,
+    relative_path: str,
+    on_line: LineCallback,
+    values: dict[str, str] | None = None,
+) -> None:
     """Run a script bundled under ``scripts/`` on the host.
 
     The script's *content* — not its path — is sent to the host: inside the
@@ -147,12 +196,18 @@ def run_bundled_script(bridge: HostBridge, relative_path: str, on_line: LineCall
     that ``flatpak-spawn --host`` cannot see, so the file is read here (where
     it's visible) and executed via ``bash -c <content>`` (still an argv list,
     never ``shell=True``).
+
+    Any ``values`` are prepended as quoted shell assignments, so a script can
+    use the user's answers as ordinary variables.
     """
     script_path = resolve_script(relative_path)
     try:
         content = script_path.read_text(encoding="utf-8")
     except OSError as exc:
         raise InstallError(f"Could not read bundled script {script_path}: {exc}") from None
+
+    if values:
+        content = _insert_after_shebang(content, shell_preamble(values))
 
     try:
         bridge.run(["bash", "-c", content], on_line=on_line, timeout=None, check=True)
@@ -163,10 +218,32 @@ def run_bundled_script(bridge: HostBridge, relative_path: str, on_line: LineCall
         ) from exc
 
 
+def _insert_after_shebang(content: str, preamble: str) -> str:
+    """Insert ``preamble`` below the shebang, which must stay on line one."""
+    if not content.startswith("#!"):
+        return preamble + content
+    shebang, _, rest = content.partition("\n")
+    return f"{shebang}\n{preamble}{rest}"
+
+
 def check_status(
-    bridge: HostBridge, check_cmd: tuple[str, ...] | None
+    bridge: HostBridge,
+    check_cmd: tuple[str, ...] | None,
+    values: dict[str, str] | None = None,
 ) -> InstallStatus:
-    """Shared status logic for providers whose only signal is a check_cmd."""
+    """Shared status logic for providers whose only signal is a check_cmd.
+
+    ``values`` are substituted into the command, so a check can refer to an
+    answer the user gave — a NAS mount cannot be looked for until it is known
+    where the user asked to mount it. With no answers saved, the placeholder
+    is left as-is, the command fails, and the app reads as not installed —
+    which is exactly right for something not yet set up.
+    """
     if check_cmd is None:
         return InstallStatus.UNKNOWN
-    return InstallStatus.INSTALLED if bridge.check(check_cmd, timeout=15) else InstallStatus.NOT_INSTALLED
+    resolved = [substitute(part, values or {}) for part in check_cmd]
+    return (
+        InstallStatus.INSTALLED
+        if bridge.check(resolved, timeout=15)
+        else InstallStatus.NOT_INSTALLED
+    )

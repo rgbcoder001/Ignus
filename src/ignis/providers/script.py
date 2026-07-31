@@ -22,11 +22,18 @@ class ScriptProvider(Provider):
 
     def status(self) -> InstallStatus:
         """INSTALLED/NOT_INSTALLED via check_cmd if the catalog set one, else UNKNOWN."""
-        return check_status(self.bridge, self._source.check_cmd)
+        return check_status(
+            self.bridge, self._source.check_cmd, self.state.app_settings(self.app.id)
+        )
 
     def install(self, on_line: LineCallback) -> None:
-        """Run the bundled script (see :func:`run_bundled_script` for how)."""
-        run_bundled_script(self.bridge, self._source.file, on_line)
+        """Run the bundled script with the user's answers as shell variables."""
+        run_bundled_script(
+            self.bridge,
+            self._source.file,
+            on_line,
+            values=self.state.app_settings(self.app.id),
+        )
 
     def describe_source(self) -> str:
         """e.g. 'Runs a bundled setup script'."""

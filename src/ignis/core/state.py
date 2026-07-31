@@ -173,6 +173,30 @@ class State:
                 fetched_at=datetime.now(UTC).isoformat(timespec="seconds"),
             ).as_dict()
 
+    # -- per-app settings ------------------------------------------------
+
+    def app_settings(self, app_id: str) -> dict[str, str]:
+        """Answers the user gave for this app's setup questions."""
+        stored = self._data["app_settings"].get(app_id)
+        if not isinstance(stored, dict):
+            return {}
+        return {str(k): str(v) for k, v in stored.items() if isinstance(v, str)}
+
+    def set_app_settings(self, app_id: str, values: dict[str, str]) -> None:
+        """Record the answers for this app.
+
+        Nothing secret is ever stored here — see docs/design-media-host.md.
+        Choosing NFS over SMB removed the only password Ignis would have had
+        to handle, and this store has no protection suitable for one.
+        """
+        with self._lock:
+            self._data["app_settings"][app_id] = dict(values)
+
+    def clear_app_settings(self, app_id: str) -> None:
+        """Forget this app's answers."""
+        with self._lock:
+            self._data["app_settings"].pop(app_id, None)
+
     # -- window geometry -------------------------------------------------
 
     def window_geometry(self) -> tuple[int, int, bool]:
@@ -214,7 +238,7 @@ class State:
 
 def _empty() -> dict[str, Any]:
     """A blank state document."""
-    return {"github_apps": {}, "api_cache": {}, "settings": {}}
+    return {"github_apps": {}, "api_cache": {}, "settings": {}, "app_settings": {}}
 
 
 def _merged(parsed: dict[str, Any]) -> dict[str, Any]:

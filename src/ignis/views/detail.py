@@ -29,6 +29,7 @@ from ignis.providers import Provider, UnsupportedSourceError, create_provider
 from ignis.providers.base import InstallStatus, NotSupportedError, ProviderError
 from ignis.views.actions import Action, run_action
 from ignis.views.common import app_icon, hardware_badges
+from ignis.views.setup import SetupDialog
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class DetailPage(Adw.NavigationPage):
         super().__init__(title=app.name, tag=f"detail-{app.id}")
         self._app = app
         self._bridge = bridge
+        self._state = state
         self._on_changed = on_changed
         self._provider: Provider | None = None
         self._unsupported_reason: str | None = None
@@ -276,7 +278,29 @@ class DetailPage(Adw.NavigationPage):
 
     def _on_install_clicked(self, _button: Gtk.Button) -> None:
         verb = "Updating" if self._install_button.get_label() == "Update" else "Installing"
-        self._run_action(f"{verb} {self._app.name}", self._provider.run_install)
+        title = f"{verb} {self._app.name}"
+
+        if self._app.settings:
+            # Ask first, then install with the answers saved.
+            SetupDialog(
+                self._app,
+                self._state.app_settings(self._app.id),
+                lambda values: self._save_and_install(values, title),
+            ).present(self)
+            return
+
+        self._run_action(title, self._provider.run_install)
+
+    def _save_and_install(self, values: dict[str, str], title: str) -> None:
+        """Store the setup answers, then install. Runs on the main loop."""
+        self._state.set_app_settings(self._app.id, values)
+        try:
+            self._state.save()
+        except OSError:
+            log.exception("could not save setup answers for %s", self._app.id)
+            self._toast("Could not save those details — see the log")
+            return
+        self._run_action(title, self._provider.run_install)
 
     def _on_uninstall_clicked(self, _button: Gtk.Button) -> None:
         self._run_action(f"Uninstalling {self._app.name}", self._provider.uninstall)

@@ -7,16 +7,25 @@ source type means adding a branch here, not special-casing an app
 
 from __future__ import annotations
 
-from ignis.core.catalog import App, FlathubSource, GithubSource, ScriptSource, UjustSource
+from ignis.core.catalog import (
+    App,
+    ContainerSource,
+    FlathubSource,
+    GithubSource,
+    ScriptSource,
+    UjustSource,
+)
 from ignis.core.host import HostBridge
 from ignis.core.state import State
 from ignis.providers.base import Provider, UnsupportedSourceError
+from ignis.providers.container import ContainerProvider
 from ignis.providers.flathub import FlathubProvider
 from ignis.providers.github_release import GithubReleaseProvider
 from ignis.providers.script import ScriptProvider
 from ignis.providers.ujust import UjustProvider
 
 __all__ = [
+    "ContainerProvider",
     "GithubReleaseProvider",
     "Provider",
     "UnsupportedSourceError",
@@ -39,4 +48,6 @@ def create_provider(app: App, bridge: HostBridge, state: State) -> Provider:
         return ScriptProvider(app, bridge, state)
     if isinstance(source, GithubSource):
         return GithubReleaseProvider(app, bridge, state)
+    if isinstance(source, ContainerSource):
+        return ContainerProvider(app, bridge, state)
     raise UnsupportedSourceError(f"no provider for source type {source.type!r}")

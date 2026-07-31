@@ -76,6 +76,16 @@
   -->
 
   <releases>
+    <release version="0.6.0" date="2026-07-30">
+      <description>
+        <p>Connecting to a network drive, and your own comics library.</p>
+        <ul>
+          <li>Connect to a NAS over NFS: the folder appears locally, comes back after a restart, and never holds up startup when the NAS is off.</li>
+          <li>Komga, a server for your comics, manga and e-books, read through a web browser.</li>
+          <li>Apps can now ask a couple of questions before installing, for things only you know — like where your files are.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-07-30">
       <description>
         <p>Adds Tailscale, which lets your other devices reach this computer securely from anywhere without opening ports on your router.</p>

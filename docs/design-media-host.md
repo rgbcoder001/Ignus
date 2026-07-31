@@ -1,6 +1,8 @@
 # Design — connecting Bazzite to a NAS
 
-Status: **proposed, not built.**
+Status: **built in v0.6.0.** The settings layer, the NAS mount and the
+container source type all exist. §6 (running media servers) was pulled back
+into scope for Komga, which has no desktop package and so had no alternative.
 
 The goal is narrow and worth stating plainly: **make connecting this machine
 to a NAS simple, and make the connection survive a reboot.** Everything else
@@ -150,9 +152,16 @@ that usually argues for `soft` is already handled by automount plus
 
 That is the whole committed scope. Two phases, no credentials, no containers.
 
-## 6. Optional, not committed: running media servers
+## 6. Running media servers — built for Komga only
 
-Recorded so the decision is not relitigated later.
+**Revised:** originally optional, but Komga has no desktop package (see the
+constraint at the end of this section), so "install Komga" had no shortcut.
+The `container` source type was built for it.
+
+Jellyfin's **server** is still deliberately out of scope — the client is in
+the catalog and is what most people actually want. Adding the server later is
+now a catalog entry rather than new code, which is the test the design set
+for itself.
 
 Ignis *could* grow a `container` source type, writing rootless Podman
 [Quadlet](https://docs.bazzite.gg/Installing_and_Managing_Software/Quadlet/)

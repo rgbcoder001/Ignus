@@ -60,6 +60,33 @@ def data_dir(app_id: str) -> Path:
     return Path.home() / ".local" / "share" / "ignis" / app_id
 
 
+def is_external_path(host_path: str) -> bool:
+    """True for a host path that may be a network mount rather than our own.
+
+    Anything under the user's home is a folder Ignis created; anything else
+    is the user's storage — typically the NAS — and needs the automount
+    handling below.
+    """
+    return host_path.startswith("/") and not host_path.startswith(str(Path.home()))
+
+
+def with_propagation(volume: str) -> str:
+    """Add rslave propagation to a bind mount.
+
+    Without this, a container that starts while an automounted share is idle
+    binds the empty autofs directory and can *never* see the files: Podman's
+    default rprivate propagation means the host mounting it later is
+    invisible inside the container, and the container touching the path
+    cannot trigger the host's automounter either.
+    """
+    parts = volume.split(":")
+    if len(parts) >= 3 and parts[2]:
+        if "slave" in parts[2] or "shared" in parts[2]:
+            return volume
+        return f"{parts[0]}:{parts[1]}:{parts[2]},rslave"
+    return f"{parts[0]}:{parts[1]}:rslave"
+
+
 def build_unit(
     name: str,
     source: ContainerSource,
@@ -68,21 +95,40 @@ def build_unit(
 ) -> str:
     """Assemble a Quadlet .container unit.
 
-    Pure so it can be tested without a container runtime.
+    Pure so it can be tested without a container runtime. ``values`` should
+    already be canonical host paths — see ContainerProvider._resolve_paths.
     """
+    volumes: list[str] = []
+    required_mounts: list[str] = []
+
+    for volume in source.volumes:
+        resolved = substitute(volume, values)
+        host_path = resolved.split(":", 1)[0]
+        if is_external_path(host_path):
+            resolved = with_propagation(resolved)
+            if host_path not in required_mounts:
+                required_mounts.append(host_path)
+        volumes.append(resolved)
+
     lines = [
         "[Unit]",
         f"Description={name} (managed by Ignis)",
         "After=network-online.target",
         "Wants=network-online.target",
+    ]
+    # Makes systemd trigger the automount and wait for it before starting the
+    # container, and hold it mounted for as long as the service runs — so the
+    # share's idle timeout cannot pull the files out from under it.
+    lines += [f"RequiresMountsFor={path}" for path in required_mounts]
+
+    lines += [
         "",
         "[Container]",
         f"Image={source.image}",
         f"PublishPort={source.port}:{source.port}",
         f"Volume={config_dir}:/config:Z",
     ]
-    for volume in source.volumes:
-        lines.append(f"Volume={substitute(volume, values)}")
+    lines += [f"Volume={volume}" for volume in volumes]
     for variable in source.environment:
         lines.append(f"Environment={substitute(variable, values)}")
 
@@ -126,9 +172,26 @@ class ContainerProvider(Provider):
         )
         return InstallStatus.INSTALLED if active else InstallStatus.NOT_INSTALLED
 
+    def _resolve_paths(self, values: dict[str, str]) -> dict[str, str]:
+        """Canonicalise any answers that are absolute paths.
+
+        On Bazzite /mnt is a symlink to /var/mnt, and RequiresMountsFor has to
+        name the real mount unit's path or it matches nothing — the same trap
+        the NAS script hit.
+        """
+        resolved: dict[str, str] = {}
+        for key, value in values.items():
+            resolved[key] = value
+            if not value.startswith("/"):
+                continue
+            result = self.bridge.run(["realpath", "-m", value], timeout=15, check=False)
+            if result.ok and result.output.strip():
+                resolved[key] = result.output.strip().splitlines()[0]
+        return resolved
+
     def install(self, on_line: LineCallback) -> None:
         """Write the unit, reload systemd and start the service."""
-        values = self.state.app_settings(self.app.id)
+        values = self._resolve_paths(self.state.app_settings(self.app.id))
         config_dir = data_dir(self.app.id)
 
         missing = unresolved_placeholders(self.source, values)
@@ -165,6 +228,15 @@ class ContainerProvider(Provider):
 
         self._enable_lingering(on_line)
         on_line(f"[ignis] {self.app.name} is running at http://localhost:{self.source.port}")
+        for volume in self.source.volumes:
+            resolved = substitute(volume, values)
+            host_path, _, rest = resolved.partition(":")
+            if is_external_path(host_path):
+                inside = rest.split(":", 1)[0]
+                on_line(
+                    f"[ignis] inside {self.app.name}, {host_path} is called {inside} — "
+                    f"use that path when it asks where your files are"
+                )
 
     def uninstall(self, on_line: LineCallback) -> None:
         """Stop the service and delete its unit — never its data."""
@@ -200,8 +272,9 @@ class ContainerProvider(Provider):
     def _home_volume_dirs(self, values: dict[str, str]) -> list[str]:
         """Host paths of writable volumes that live under the user's home.
 
-        Only home paths: a media folder on /mnt is the NAS's and must already
-        exist — creating it here would just mask a missing mount.
+        Only home paths: a media folder on the NAS must already exist —
+        creating it here would just mask a missing mount, and would leave the
+        container reading an empty local directory instead.
         """
         home = Path.home()
         dirs: list[str] = []
@@ -209,7 +282,7 @@ class ContainerProvider(Provider):
             host = substitute(volume, values).split(":", 1)[0]
             if host.startswith("%h/"):
                 host = str(home / host[3:])
-            if host.startswith(str(home)):
+            if not is_external_path(host):
                 dirs.append(host)
         return dirs
 

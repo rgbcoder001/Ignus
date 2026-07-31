@@ -76,6 +76,15 @@
   -->
 
   <releases>
+    <release version="0.7.3" date="2026-07-31">
+      <description>
+        <p>Komga and Jellyfin Server can now reliably see a NAS.</p>
+        <ul>
+          <li>A server started while the NAS connection was resting saw an empty folder and never noticed the files appear. Servers now wait for the NAS and keep it awake while they run.</li>
+          <li>After installing, Ignis tells you what your folder is called inside the server, which is what its setup screen asks for.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.2" date="2026-07-31">
       <description>
         <p>Connecting to a NAS now works on Bazzite.</p>

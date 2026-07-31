@@ -224,6 +224,29 @@ Jellyfin's and Komga's own web setup does that far better than an installer
 could. Ignis stops at "running, can see the media folder, browser open at
 the right address."
 
+### Containers reading an automounted share (found on hardware)
+
+A container reading the NAS needs two things beyond the obvious bind mount,
+and without them it silently sees an empty folder:
+
+- **`:rslave` propagation on the volume.** Podman's default is `rprivate`.
+  A container that starts while the automount is idle binds the empty autofs
+  directory, and can never see the files: the host mounting it later does not
+  propagate in, and the container touching the path cannot trigger the host's
+  automounter either. This is [podman#12122](https://github.com/containers/podman/issues/12122).
+- **`RequiresMountsFor=<path>` in `[Unit]`.** Makes systemd trigger the
+  automount and wait for it before starting the container, and hold it
+  mounted while the service runs — otherwise `TimeoutIdleSec` unmounts the
+  share out from under a running server.
+
+The symptom is badly misleading: whichever server happened to be installed
+while the share was still mounted works perfectly, and the next one installed
+after the 10-minute idle timeout sees nothing. That looks like a difference
+between the two applications, and is not.
+
+Paths must be canonicalised (`realpath -m`) before going into either
+directive, for the same `/mnt` → `/var/mnt` reason as §4.
+
 Standing rules for any container entry:
 
 - The media volume stays read-only (`{media_dir}:/media:ro`) regardless of

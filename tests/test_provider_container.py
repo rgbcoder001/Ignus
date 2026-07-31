@@ -60,10 +60,18 @@ def test_unit_substitutes_the_users_answer():
 
 
 def test_media_volume_stays_read_only():
-    """A server has no business writing to someone's library."""
+    """A server has no business writing to someone's library.
+
+    Checks the options rather than the end of the line: propagation settings
+    are appended after ro, so the volume reads ":ro,rslave".
+    """
     unit = build_unit("Komga", SOURCE, {"books_dir": "/mnt/nas"}, Path("/cfg"))
     media = [ln for ln in unit.splitlines() if "/books" in ln]
-    assert media and all(ln.endswith(":ro") for ln in media)
+    assert media
+    for line in media:
+        options = line.split(":")[-1].split(",")
+        assert "ro" in options, line
+        assert "rw" not in options, line
 
 
 def test_config_volume_is_writable():
@@ -143,6 +151,82 @@ def test_preview_names_the_unit_and_address(app, bridge, state):
     preview = ContainerProvider(app, bridge, state).command_preview()
     assert "ignis-komga" in preview
     assert "25600" in preview
+
+
+# -- automounted network shares -----------------------------------------
+
+
+def test_network_volume_gets_slave_propagation():
+    """Podman's default rprivate means a container started while an
+    automounted share is idle binds an empty directory and can never see the
+    files appear. rslave lets the host's mount propagate in."""
+    unit = build_unit("Komga", SOURCE, {"books_dir": "/var/mnt/nas"}, Path("/cfg"))
+    volume = next(ln for ln in unit.splitlines() if "/books" in ln)
+    assert volume.endswith(":ro,rslave"), volume
+
+
+def test_network_volume_is_required_before_start():
+    """RequiresMountsFor makes systemd trigger the automount and wait, and
+    holds it mounted while the service runs so the idle timeout cannot pull
+    the files away underneath it."""
+    unit = build_unit("Komga", SOURCE, {"books_dir": "/var/mnt/nas"}, Path("/cfg"))
+    assert "RequiresMountsFor=/var/mnt/nas" in unit
+
+
+def test_config_volume_gets_no_propagation_or_dependency():
+    """Ignis's own config folder is an ordinary directory, not a mount."""
+    unit = build_unit("Komga", SOURCE, {"books_dir": "/var/mnt/nas"}, Path("/cfg"))
+    config = next(ln for ln in unit.splitlines() if "/config" in ln)
+    assert "rslave" not in config
+    assert "RequiresMountsFor=/cfg" not in unit
+
+
+def test_home_volume_is_not_treated_as_a_network_mount():
+    source = ContainerSource(
+        image="img",
+        port=1,
+        volumes=(f"{Path.home()}/.local/share/ignis/x/cache:/cache:Z",),
+    )
+    unit = build_unit("X", source, {}, Path("/cfg"))
+    assert "rslave" not in unit
+    assert "RequiresMountsFor" not in unit
+
+
+def test_propagation_is_not_added_twice():
+    source = ContainerSource(image="img", port=1, volumes=("/mnt/n:/d:ro,rslave",))
+    unit = build_unit("X", source, {}, Path("/cfg"))
+    assert unit.count("rslave") == 1
+
+
+def test_propagation_on_a_volume_without_options():
+    from ignis.providers.container import with_propagation
+
+    assert with_propagation("/mnt/n:/d") == "/mnt/n:/d:rslave"
+    assert with_propagation("/mnt/n:/d:ro") == "/mnt/n:/d:ro,rslave"
+
+
+def test_install_canonicalises_paths_before_writing_the_unit(app, bridge, state):
+    """/mnt is a symlink to /var/mnt on Bazzite; RequiresMountsFor naming the
+    symlink would match no mount unit at all."""
+    state.set_app_settings("komga", {"books_dir": "/mnt/nas"})
+    bridge.set_result(["realpath", "-m", "/mnt/nas"], output="/var/mnt/nas")
+
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+
+    write = next(c for c in bridge.calls if "base64 -d" in " ".join(c.argv))
+    match = re.search(r"printf %s '?([A-Za-z0-9+/=]+)'?", write.argv[2])
+    decoded = base64.b64decode(match.group(1)).decode()
+    assert "RequiresMountsFor=/var/mnt/nas" in decoded
+    assert "Volume=/var/mnt/nas:/books:ro,rslave" in decoded
+
+
+def test_install_says_what_the_folder_is_called_inside(app, bridge, state):
+    """Komga's own setup asks for a path, and it is /books in there, not the
+    path the user typed."""
+    state.set_app_settings("komga", {"books_dir": "/var/mnt/nas"})
+    lines: list[str] = []
+    ContainerProvider(app, bridge, state).install(lines.append)
+    assert any("/books" in line and "called" in line for line in lines)
 
 
 # -- placeholder guard --------------------------------------------------

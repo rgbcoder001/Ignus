@@ -1,219 +1,213 @@
-# Design — turning Bazzite into a media host
+# Design — connecting Bazzite to a NAS
 
-Status: **proposed, not built.** This covers three related asks: mounting a
-Synology NAS, running a Jellyfin *server*, and running Komga for e-books and
-comics.
+Status: **proposed, not built.**
 
-Read this before writing any of it. It changes the catalog schema, adds a
-source type, and is the first thing in Ignis that handles a password.
+The goal is narrow and worth stating plainly: **make connecting this machine
+to a NAS simple, and make the connection survive a reboot.** Everything else
+here is optional and explicitly not committed to.
+
+Running media *servers* on Bazzite (Jellyfin server, Komga) was considered and
+deliberately pushed into §6 as optional. Jellyfin's client is already in the
+catalog, and mapping libraries is something the apps' own web interfaces do
+well. Ignis does not need to reimplement that.
 
 ---
 
-## 1. Why this needs a design at all
+## 1. Decisions already made
 
-Everything Ignis installs today is static data. `catalog.toml` says "install
-`com.obsproject.Studio`" and that is the whole story — no app has ever needed
-to ask the user a question.
-
-These three do:
-
-| | Needs to know |
+| Decision | Rationale |
 |---|---|
-| NAS mount | host, share name, username, password, where to mount it |
-| Jellyfin server | which folder holds the media |
-| Komga | which folder holds the books |
+| **NFS, not SMB** | Faster for the metadata-heavy work (library scans, comics), lighter on CPU, and removes password handling entirely |
+| **Export is Read/Write** | The user wants to add, delete and organise files from Bazzite |
+| **Any container mount is `:ro`** | Export permission and container view are separate controls; servers never need write access |
+| **One rule for one IP, via DHCP reservation** | NFS has no password — the IP *is* the credential. Subnet-wide read/write hands delete rights to every device on the network |
+| **systemd units, not `/etc/fstab`** | See §4. Removing a mount becomes "delete two files" rather than editing a file the boot depends on |
 
-So the blocking piece is **per-app configuration**, and one of those fields is
-a password. That is the actual work; the containers themselves are easy.
+### Rejected: SMB with stored credentials
 
-## 2. Dependency order
+The earlier draft of this design had Ignis collect a NAS password, add a
+`stdin_data` channel to `HostBridge` so the password never reached the log,
+and write a root-owned `0600` credentials file. Choosing NFS deletes that
+entire branch: no password field, no credentials file, no change to
+`HostBridge`, and no way to leak a secret into `ignis.log`.
 
-The obvious order (Jellyfin, Komga, NAS) is backwards. Both servers exist to
-serve media that lives on the NAS, so:
+This is the main reason NFS is the right call here, over and above the
+performance argument.
 
-```
-1. NAS mount        →  media is readable at a real path
-2. Container support →  Jellyfin server
-3.                   →  Komga
-```
+## 2. What Ignis is missing
 
-Building the servers first means configuring their libraries twice.
+Every catalog entry to date is static data — no app has ever needed to ask
+the user a question. A NAS mount needs three answers:
 
-## 3. Scope decision: let the apps configure themselves
+| Field | Example | Type |
+|---|---|---|
+| NAS address | `192.168.1.50` | text |
+| Export path | `/volume1/Media` | text |
+| Mount point | `/mnt/nas` | path |
 
-Jellyfin and Komga both have good web-based setup wizards. Ignis should not
-reimplement them.
-
-**Ignis's job ends at:** the service is running, it can see the media folder,
-the firewall allows it, and the browser is open at the right address. Library
-setup, users, metadata and transcoding settings all happen inside the app,
-where the good UI already exists.
-
-That keeps the configuration Ignis has to collect down to roughly one path per
-server, rather than a whole settings system.
-
-## 4. Per-app configuration
+No password, so no secret storage. This is a small settings layer, not a
+configuration system.
 
 ### Catalog schema
 
-Add an optional `settings` array to an entry:
-
 ```toml
 [[apps.settings]]
-key = "media_dir"
-label = "Where your films and shows are"
-type = "path"          # path | text | port | password
-default = "~/Media"
-help = "Ignis will let the server read this folder."
+key = "nas_host"
+label = "Your NAS address"
+type = "text"
+default = ""
+help = "The IP address of the NAS, for example 192.168.1.50"
 ```
 
-Field types map to widgets: `path` to an `Adw.EntryRow` with a folder picker,
-`port` to a spin row with a validated range, `password` to
-`Adw.PasswordEntryRow`, `text` to a plain entry row.
+Types needed for this phase: `text` and `path`. (`port` and `password` were
+in the earlier draft and are no longer required — do not build them until
+something needs them.)
 
 ### Flow
 
-Detail page gains a **Configure** step: if an app declares `settings` and has
-no saved values, Install opens a dialog first. Values are substituted into the
-provider's command as `{media_dir}`-style placeholders.
+If an entry declares `settings` and has no saved values, Install opens a
+dialog first. Values are substituted into the provider's command as
+`{nas_host}` placeholders, and stored in `state.json` under
+`app_settings.<app_id>`.
 
-### Where values live
+## 3. The export path is the usual mistake
 
-Non-secret values go in `state.json` under `app_settings.<app_id>`, alongside
-the existing install records.
+On the Synology, the value to mount is the **mount path** shown at the bottom
+of the NFS Permissions dialog — `/volume1/Media` — not the share's display
+name. The settings dialog should say so in its help text, because this is the
+single most common way an NFS mount fails for a first-timer.
 
-**Passwords do not.** See §6.
+## 4. The mount itself
 
-## 5. New source type: `container`
-
-Bazzite [documents Quadlet](https://docs.bazzite.gg/Installing_and_Managing_Software/Quadlet/)
-as its way to run services, and Podman recommends Quadlet over
-`podman generate systemd`. Use Quadlet.
-
-```toml
-[apps.source]
-type = "container"
-image = "docker.io/jellyfin/jellyfin:latest"
-port = 8096
-volumes = [
-  "{media_dir}:/media:ro",
-  "%h/.local/share/ignis/jellyfin/config:/config:Z",
-]
-```
-
-Ignis writes a rootless user Quadlet unit to
-`~/.config/containers/systemd/ignis-<id>.container`, then:
+A pair of systemd units, written by a bundled script under `pkexec`:
 
 ```
-systemctl --user daemon-reload
-systemctl --user start ignis-<id>.service
+/etc/systemd/system/mnt-nas.mount
+/etc/systemd/system/mnt-nas.automount
 ```
 
-- **Status:** `systemctl --user is-active ignis-<id>.service` — fast, local,
-  no network. Fits the existing `status()` contract.
-- **Autostart without logging in:** needs `loginctl enable-linger $USER`,
-  which needs privilege, so one `pkexec` prompt at install.
-- **Open:** the existing Open button becomes "open `http://localhost:<port>`"
-  via `xdg-open`, which is genuinely the right action for a server.
-- **Uninstall:** stop the service and delete the unit file — and **never**
-  touch the media folder or the config volume. Removing someone's library
-  because they uninstalled a server would be unforgivable. Same
-  deletable-roots guard as the GitHub provider.
+```ini
+# mnt-nas.mount
+[Unit]
+Description=NAS media (managed by Ignis)
+After=network-online.target
+Wants=network-online.target
 
-Images verified: `jellyfin/jellyfin` (396M pulls), `gotson/komga` (43M pulls).
+[Mount]
+What=192.168.1.50:/volume1/Media
+Where=/mnt/nas
+Type=nfs4
+Options=rw,noatime,_netdev,vers=4.1
 
-### Sandbox note
-
-Quadlet units must land in the **real** `~/.config/containers/systemd/`.
-Inside the Flatpak, `~/.config` is redirected to `~/.var/app/<id>/config`, the
-same trap already documented in `core/paths.py`. Since these run through
-`HostBridge`, the script executes on the host where `$HOME` is correct — but
-any Python that writes these paths directly must not use `XDG_CONFIG_HOME`.
-
-## 6. The NAS mount, and the password problem
-
-For a *container* to read the NAS, it has to be a real kernel mount. A Dolphin
-`smb://` browse is per-session and per-user and invisible to services, so it
-cannot work here.
-
-Proposed: a systemd `.mount` unit plus a root-owned credentials file.
-
-```
-/etc/systemd/system/mnt-nas.mount        (What=//host/share, Type=cifs)
-/etc/ignis/nas-<name>.credentials        (0600, root-owned)
+[Install]
+WantedBy=multi-user.target
 ```
 
-`x-systemd.automount` so the share is mounted on first access rather than
-blocking boot when the NAS is off.
+```ini
+# mnt-nas.automount
+[Automount]
+Where=/mnt/nas
+TimeoutIdleSec=600
+```
 
-### Credentials must never reach the log
+Then `systemctl daemon-reload && systemctl enable --now mnt-nas.automount`.
 
-This is the part to get right. `HostBridge` logs every command **and its full
-output**, which is the whole debuggability story — and it would happily write
-a NAS password into `ignis.log` in plaintext if the password were passed as a
-command argument.
+**Why units rather than `/etc/fstab`:** a malformed fstab line is a genuinely
+nasty failure for a non-technical user, and removal means editing a shared
+file rather than deleting our own. Units are self-contained, and the file name
+identifies them as ours.
 
-So:
+**Why automount rather than a plain mount:** the share is mounted on first
+access instead of at boot, so a NAS that is switched off, asleep or moved does
+not delay or block startup. `TimeoutIdleSec` lets the NAS spin its disks down
+again.
 
-- **Extend `HostBridge.run()` with `stdin_data`**, piped to the process and
-  **never logged**. `core/host.py` is Opus-owned per CLAUDE.md.
-- The password reaches the host script on stdin, which writes the credentials
-  file with `umask 077`.
-- The password is never stored in `state.json`, never placed in argv, never
-  echoed. Host, share and mount point are ordinary settings and can be.
-- The credentials file is root-owned 0600 — the standard arrangement for
-  `cifs-utils`.
+**Unit naming is not free-form.** The file name must be the escaped mount
+path: `/mnt/nas` becomes `mnt-nas.mount`. Derive it with
+`systemd-escape --path --suffix=mount "$MOUNT_POINT"` rather than by string
+substitution.
 
-### SMB vs NFS
+**Mount options:** `hard` (the default) is kept rather than `soft`. With
+writes enabled, `soft` risks silent corruption on a flaky link; the hang risk
+that usually argues for `soft` is already handled by automount plus
+`_netdev`.
 
-Worth asking the user before building:
+### Status, uninstall
 
-- **SMB/CIFS** — works with Synology's defaults, needs a username and
-  password, slightly more per-file overhead.
-- **NFS** — faster for large media, no credentials to store at all (which
-  removes the entire password problem above), but requires enabling NFS and
-  setting host permissions on the Synology first.
+- **Status:** `systemctl is-enabled mnt-nas.automount` — no privileges, no
+  network, fast enough for the catalog list.
+- **Uninstall:** stop and disable the automount, delete the two unit files,
+  `daemon-reload`. **Never** touch anything under the mount point — that is
+  the user's NAS, and Ignis has no business deleting from it. The refusal
+  guard already used for GitHub-app uninstall applies here.
 
-If NFS is acceptable, the design gets materially simpler and safer.
+## 5. Phases
 
-## 7. Firewall
+| Phase | Scope |
+|---|---|
+| A | Settings layer: `[[apps.settings]]` schema, config dialog, storage in `state.json` |
+| B | NAS mount catalog entry + bundled script |
 
-Jellyfin (8096) and Komga (25600) need their ports open for other devices on
-the LAN — `firewall-cmd --add-port`, so another privileged step.
+That is the whole committed scope. Two phases, no credentials, no containers.
 
-Not needed if access is only ever over Tailscale, which is a reasonable
-default for a home setup and avoids exposing anything to the LAN. Suggest
-asking, defaulting to Tailscale-only.
+## 6. Optional, not committed: running media servers
 
-## 8. Phases
+Recorded so the decision is not relitigated later.
 
-| Phase | Scope | Notes |
-|---|---|---|
-| A | Per-app settings: catalog schema, config dialog, storage | No new services yet; the enabling work |
-| B | `stdin_data` on HostBridge, NAS mount entry | The credentials-handling phase; smallest and most security-sensitive |
-| C | `container` source type + Jellyfin server | The bulk of the container work |
-| D | Komga | Should be a catalog entry only, if C generalised properly |
+Ignis *could* grow a `container` source type, writing rootless Podman
+[Quadlet](https://docs.bazzite.gg/Installing_and_Managing_Software/Quadlet/)
+units to `~/.config/containers/systemd/` to run Jellyfin server
+(`docker.io/jellyfin/jellyfin`) and Komga (`docker.io/gotson/komga`). Bazzite
+documents Quadlet as its own way to run services, so the mechanism is sound.
 
-C being one catalog entry once B and A exist is the test of whether the design
-is right.
+**Why it is not in scope:**
 
-## 9. Risks
+- The client is what most people want, and the Jellyfin client is already in
+  the catalog.
+- Library mapping is done well by Jellyfin's and Komga's own web interfaces.
+  Ignis reimplementing that would be worse than what already exists.
+- It turns an app installer into a service manager, which is a much larger
+  thing to maintain and to get right.
 
-- **Uninstall deleting media.** The single worst outcome here. Container
-  uninstall must remove only the unit file, never a volume path.
-- **Password leaking into the log.** Addressed in §6, but it is the reason
-  that section exists.
-- **A wrong NAS mount blocking boot.** `x-systemd.automount` plus `nofail`.
-- **Scope.** This is a service manager growing inside an app installer. If it
-  gets much past Jellyfin and Komga, it deserves to be its own screen rather
-  than more catalog entries.
+**One constraint to know if this is ever revisited:** Komga has no desktop
+package. It is a server, reached through a browser, with no Flathub entry —
+so "just install Komga" is not available as a simple catalog entry the way
+Jellyfin's client is. Komga specifically requires the container work in this
+section; there is no shortcut.
 
-## 10. Open questions for the user
+If it is built, the volume mount stays read-only (`{media_dir}:/media:ro`)
+regardless of the NFS export being read/write, and uninstall must never remove
+a media folder or a config volume.
 
-1. **SMB or NFS** for the Synology? NFS removes the password handling
-   entirely.
-2. **Where should media be mounted** — `/mnt/nas`, or somewhere under home?
-3. **LAN access or Tailscale-only?** Tailscale-only means no firewall changes
-   and nothing exposed locally.
-4. **Should the servers start without logging in?** Yes implies enabling
-   lingering, which is one more privileged step at install.
+## 7. Risks
+
+- **Deleting a user's media.** The worst possible outcome. Uninstall touches
+  only the two unit files, never the mount point's contents.
+- **A bad mount delaying boot.** Handled by `automount` + `_netdev`; the
+  share is only touched when something reads it.
+- **A changing NAS IP silently breaking the mount.** Not solvable in software
+  — the setup notes tell the user to set a DHCP reservation.
+- **Scope creep into a service manager.** §6 exists to make that a conscious
+  decision rather than a drift.
+
+## 8. Synology setup (reference)
+
+The user does this once, before installing the Ignis entry.
+
+1. **Control Panel → File Services → NFS**: enable NFS, set maximum protocol
+   to **NFSv4.1**.
+2. **Control Panel → Shared Folder → [share] → Edit → NFS Permissions →
+   Create**:
+   - **Hostname or IP**: the Bazzite machine's reserved IP
+   - **Privilege**: Read/Write
+   - **Squash**: Map all users to admin
+   - **Security**: sys
+   - Tick asynchronous, non-privileged ports, and access to mounted
+     subfolders
+3. Note the **mount path** at the bottom of that dialog — `/volume1/Media`.
+   That is what goes in the Ignis settings dialog.
+4. Set a **DHCP reservation** for the Bazzite machine on the router.
+5. If Synology's firewall is on, allow NFS.
+
+SMB can stay enabled on the same shared folder throughout — Synology serves
+both protocols at once, so Windows machines are unaffected.

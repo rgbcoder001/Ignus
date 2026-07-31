@@ -15,8 +15,8 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-from ignis.core import paths
-from ignis.core.catalog import App, Category, GithubSource, InstallKind
+from ignis.core import desktop, paths
+from ignis.core.catalog import App, GithubSource, InstallKind
 from ignis.core.host import HostBridge
 from ignis.core.state import InstalledApp, State
 from ignis.providers.base import (
@@ -35,14 +35,6 @@ from ignis.providers.github_api import (
 log = logging.getLogger(__name__)
 
 ELF_MAGIC = b"\x7fELF"
-
-DESKTOP_CATEGORIES = {
-    Category.GAMING: "Game;",
-    Category.EMULATION: "Game;Emulator;",
-    Category.MEDIA: "AudioVideo;",
-    Category.STREAMING: "AudioVideo;",
-    Category.SYSTEM: "System;",
-}
 
 
 class GithubReleaseProvider(Provider):
@@ -162,6 +154,28 @@ class GithubReleaseProvider(Provider):
 
         self._refresh_desktop_database(on_line)
         on_line(f"[ignis] {self.app.name} removed")
+
+    def launch_command(self) -> list[str] | None:
+        """Read the launcher Ignis wrote at install time and reuse its Exec.
+
+        Parsing the entry rather than recording the path separately means
+        this also works for apps installed by an older Ignis.
+        """
+        entry = self.desktop_entry_path
+        try:
+            text = entry.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            log.info("no launcher for %s at %s", self.app.id, entry)
+            return None
+        return desktop.parse_exec(text)
+
+    def shortcut_entry(self) -> str | None:
+        """The launcher Ignis already wrote, reused as a desktop shortcut."""
+        try:
+            return self.desktop_entry_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            log.info("no launcher to copy for %s", self.app.id)
+            return None
 
     def describe_source(self) -> str:
         """e.g. 'Installs from GitHub releases: Owner/Repo'."""
@@ -312,27 +326,20 @@ def _make_executable(path: Path) -> None:
 
 def _desktop_entry(app: App, executable: Path) -> str:
     """Build the .desktop file contents for an installed app."""
-    return "\n".join(
-        [
-            "[Desktop Entry]",
-            "Type=Application",
-            f"Name={app.name}",
-            f"Comment={app.summary}",
-            f"Exec={_quote_exec(executable)}",
-            f"Path={executable.parent}",
-            "Icon=application-x-executable",
-            "Terminal=false",
-            f"Categories={DESKTOP_CATEGORIES.get(app.category, 'Utility;')}",
-            f"X-Ignis-App={app.id}",
-            "",
-        ]
+    return desktop.build_entry(
+        name=app.name,
+        comment=app.summary,
+        exec_argv=[str(executable)],
+        icon="application-x-executable",
+        categories=desktop.categories_for(app.category),
+        app_id=app.id,
+        working_directory=str(executable.parent),
     )
 
 
 def _quote_exec(executable: Path) -> str:
     """Quote a path for a .desktop Exec= line."""
-    escaped = str(executable).replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return desktop.quote_exec([str(executable)])
 
 
 def deletable_roots() -> tuple[Path, ...]:

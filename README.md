@@ -31,7 +31,9 @@ category at a time — Gaming, Emulation, Media, Streaming or System.
 - **To install something**, click it, read what it does, and press
   **Install**. A window shows exactly what is happening as it happens.
 - **Already installed?** Apps you have are marked *Installed*, so the list
-  doubles as a summary of what's set up on the machine.
+  doubles as a summary of what's set up on the machine. Open one and you get
+  an **Open** button to start it, and a switch to **put a shortcut on the
+  desktop** so it's there to double-click later.
 - **A badge like `AMD`** means an app is built for that graphics card. If it
   doesn't match yours, Ignis says so but still lets you install it — hardware
   detection isn't perfect and you may know better.

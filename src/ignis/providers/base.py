@@ -81,6 +81,30 @@ class Provider(ABC):
         """Remove the app. Raises :class:`NotSupportedError` by default."""
         raise NotSupportedError(f"{self.app.name} can't be uninstalled from Ignis")
 
+    def launch_command(self) -> list[str] | None:
+        """argv that starts the installed app, or None if Ignis can't.
+
+        Providers that install something runnable override this. A ujust
+        recipe or a config script generally has nothing to launch.
+        """
+        return None
+
+    def shortcut_entry(self) -> str | None:
+        """.desktop contents for a desktop shortcut, or None if unsupported."""
+        return None
+
+    def launch(self) -> None:
+        """Start the installed app without waiting for it to exit."""
+        argv = self.launch_command()
+        if argv is None:
+            raise NotSupportedError(f"Ignis can't open {self.app.name}")
+        try:
+            self.bridge.spawn(argv)
+        except CommandError as exc:
+            raise InstallError(
+                f"Could not open {self.app.name}", result=exc.result
+            ) from exc
+
     @abstractmethod
     def describe_source(self) -> str:
         """One line describing where this app comes from, for the detail view."""

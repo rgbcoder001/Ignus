@@ -132,6 +132,33 @@ class HostBridge:
         """True if ``argv`` exits zero. Never raises — for status probes."""
         return self.run(argv, timeout=timeout, check=False).ok
 
+    def spawn(self, argv: Sequence[str]) -> None:
+        """Start a command on the host and return immediately.
+
+        For launching applications: :meth:`run` waits for the process to
+        exit, which for a launched app means waiting until the user closes
+        it. The child gets its own session so it outlives Ignis.
+        """
+        argv = list(argv)
+        real_argv = self.resolve_argv(argv)
+        display = shlex.join(argv)
+        log.info("spawn: %s", display)
+
+        try:
+            subprocess.Popen(  # noqa: S603 - argv list, never shell=True
+                real_argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except (OSError, ValueError) as exc:
+            message = f"Could not start {real_argv[0]}: {exc}"
+            log.error("spawn failed: %s — %s", display, exc)
+            raise CommandError(
+                CommandResult(argv=argv, returncode=EXIT_NOT_FOUND, output=message)
+            ) from exc
+
     def _execute(
         self,
         argv: list[str],

@@ -36,6 +36,9 @@ finish-args:
   - --filesystem=~/Applications:create
   - --filesystem=xdg-data/applications:create
   - --filesystem=xdg-data/icons:create
+  # For "put a shortcut on the desktop". xdg-desktop resolves to the user's
+  # real (and possibly localised) desktop folder.
+  - --filesystem=xdg-desktop:create
 
 cleanup:
   - '*.pyc'

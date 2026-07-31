@@ -247,6 +247,31 @@ The end-user path, exactly as someone else would experience it.
 If any step needs a terminal, the release is not done. See
 [releasing.md](releasing.md) for the full pre-release checklist.
 
+## Opening apps and desktop shortcuts
+
+On an installed app's page:
+
+1. **Open** should start the app and leave Ignis usable — Ignis must not
+   freeze while the app runs, and closing Ignis must not kill the app it
+   launched.
+2. Turning on **Put a shortcut on the desktop** should make an icon appear on
+   the desktop that launches the app when double-clicked. On GNOME the first
+   double-click may ask you to allow launching; on KDE it should just run.
+3. Turning the switch back off should remove that icon, and nothing else.
+4. Reopen the app's page — the switch should still reflect reality.
+
+Apps with nothing to launch (Sunshine's recipe, config scripts) correctly
+show no Open button and no shortcut switch.
+
+Worth confirming the shortcut file itself:
+
+```bash
+cat ~/Desktop/ignis-*.desktop
+```
+
+Each should carry an `X-Ignis-App=` line. That marker is how Ignis knows a
+file is its own; it will refuse to delete a desktop file without it.
+
 ## Catalog verification checklist
 
 Every entry in `data/catalog.toml` needs on-machine confirmation before it

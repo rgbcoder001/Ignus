@@ -76,6 +76,15 @@
   -->
 
   <releases>
+    <release version="0.3.0" date="2026-07-30">
+      <description>
+        <p>Opening the apps you installed.</p>
+        <ul>
+          <li>Installed apps now have an Open button, so you can start them straight from Ignis.</li>
+          <li>Any installed app can be given a desktop shortcut with a single switch.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-07-30">
       <description>
         <p>Keeping things up to date, and showing what your machine is.</p>

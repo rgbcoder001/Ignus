@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shlex
 
+from ignis.core import desktop
 from ignis.core.host import CommandError, HostBridge
 from ignis.providers.base import InstallError, InstallStatus, LineCallback, Provider
 
@@ -156,6 +157,25 @@ class FlathubProvider(Provider):
                 f"Updating {self.app.name} failed with exit code {exc.result.returncode}",
                 result=exc.result,
             ) from exc
+
+    def launch_command(self) -> list[str] | None:
+        """`flatpak run <ref>` starts a Flatpak whichever scope it's in."""
+        return ["flatpak", "run", self.ref]
+
+    def shortcut_entry(self) -> str | None:
+        """A desktop shortcut that runs the Flatpak.
+
+        Uses the app's own id as the icon name: installing a Flatpak exports
+        its icon into the icon theme, so the desktop already knows it.
+        """
+        return desktop.build_entry(
+            name=self.app.name,
+            comment=self.app.summary,
+            exec_argv=["flatpak", "run", self.ref],
+            icon=self.ref,
+            categories=desktop.categories_for(self.app.category),
+            app_id=self.app.id,
+        )
 
     def describe_source(self) -> str:
         """e.g. 'Installs from Flathub: com.obsproject.Studio'."""

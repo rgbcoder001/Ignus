@@ -137,6 +137,28 @@ path: `/mnt/nas` becomes `mnt-nas.mount`. Derive it with
 `systemd-escape --path --suffix=mount "$MOUNT_POINT"` rather than by string
 substitution.
 
+**The mount point must be canonical — this bit Bazzite specifically.**
+Bazzite is an ostree system, so `/mnt`, `/home`, `/opt` and `/srv` are all
+symlinks into `/var`. `mount(8)` follows a symlink without complaint, so a
+test mount of `/mnt/nas` succeeds — but systemd refuses the automount:
+
+```
+mnt-nas.automount: Mount path /mnt/nas is not canonical (contains a symlink).
+Failed with result 'resources'.
+```
+
+Resolve with `realpath -m` (`-m` so it works before the folder exists)
+before deriving the unit name or writing `Where=`. `/mnt/nas` becomes
+`/var/mnt/nas` and the unit becomes `var-mnt-nas.automount`. The user can
+still use `/mnt/nas` — it is the same folder.
+
+**The status check must resolve the path the same way.** Looking for
+`mnt-nas.automount` when systemd created `var-mnt-nas.automount` reports a
+perfectly good mount as missing.
+
+**Guard the `/var/*` originals too.** A refuse-list containing `/home` does
+not catch `/var/home`, which is the same directory.
+
 **Mount options:** `hard` (the default) is kept rather than `soft`. With
 writes enabled, `soft` risks silent corruption on a flaky link; the hang risk
 that usually argues for `soft` is already handled by automount plus

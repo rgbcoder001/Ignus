@@ -233,7 +233,12 @@ file = "nas-mount.sh"
 # {mount_point} is filled in from the user's answer. Before they have
 # answered it stays literal, the command fails, and the app correctly reads
 # as not installed.
-check_cmd = ["bash", "-c", 'systemctl is-enabled "$(systemd-escape --path --suffix=automount "{mount_point}")" >/dev/null 2>&1']
+#
+# realpath -m matches what the install script does: on Bazzite /mnt is a
+# symlink to /var/mnt, and systemd names the unit after the canonical path
+# (var-mnt-nas.automount), so looking for mnt-nas.automount would never find
+# it and the app would always claim this was not installed.
+check_cmd = ["bash", "-c", 'systemctl is-enabled "$(systemd-escape --path --suffix=automount "$(realpath -m "{mount_point}")")" >/dev/null 2>&1']
 
 [[apps.settings]]
 key = "nas_host"

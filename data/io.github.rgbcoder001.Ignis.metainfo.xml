@@ -76,6 +76,14 @@
   -->
 
   <releases>
+    <release version="0.7.2" date="2026-07-31">
+      <description>
+        <p>Connecting to a NAS now works on Bazzite.</p>
+        <ul>
+          <li>Setting up a NAS at /mnt/nas failed because that folder is a shortcut to somewhere else on Bazzite, which the automatic connection would not accept. Ignis now uses the real location, and /mnt/nas keeps working as before.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.1" date="2026-07-31">
       <description>
         <p>Readable errors, and a NAS connection that explains itself.</p>

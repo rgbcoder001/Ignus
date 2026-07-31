@@ -39,10 +39,28 @@ esac
 mount_point="${mount_point%/}"
 [ -z "$mount_point" ] && mount_point="/"
 
+# Bazzite is an ostree system, where /mnt, /home, /opt and /srv are symlinks
+# into /var. mount(8) follows those quite happily, but systemd refuses to set
+# up an automount on a path containing one:
+#   "Mount path /mnt/nas is not canonical (contains a symlink)."
+# So resolve the path before it is used anywhere. -m so it works whether or
+# not the folder exists yet.
+canonical="$(realpath -m "$mount_point" 2>/dev/null || echo "$mount_point")"
+if [ "$canonical" != "$mount_point" ]; then
+    echo "On this system ${mount_point} is really ${canonical}."
+    echo "Setting it up under the real path - ${mount_point} keeps working"
+    echo "for you either way, they are the same folder."
+    echo
+    mount_point="$canonical"
+fi
+
 # Mounting over a system directory would hide it, which on some of these
 # breaks the machine outright. Protect the user from a slip of the keyboard.
+# The /var/* entries are the ostree originals of the symlinks resolved above.
 for forbidden in / /home /root /etc /usr /var /boot /bin /sbin /lib /lib64 \
-                 /opt /srv /tmp /proc /sys /dev /run /mnt /media "$HOME"; do
+                 /opt /srv /tmp /proc /sys /dev /run /mnt /media \
+                 /var/home /var/mnt /var/opt /var/srv /var/roothome \
+                 /var/tmp /var/log "$HOME"; do
     if [ "$mount_point" = "$forbidden" ]; then
         echo "Refusing to mount at ${mount_point} - that would hide an" >&2
         echo "important folder. Pick somewhere inside it instead, like" >&2

@@ -104,6 +104,32 @@ def test_nas_script_cleans_up_after_a_failed_enable():
     assert "rm -f" in enable_block
 
 
+def test_nas_setup_canonicalises_the_mount_point():
+    """Bazzite is ostree: /mnt is a symlink to /var/mnt. systemd refuses to
+    automount a path containing a symlink ("not canonical"), even though
+    mount(8) follows it fine — so the path must be resolved before use.
+
+    The status check has to resolve it the same way, or it looks for
+    mnt-nas.automount while systemd created var-mnt-nas.automount and the app
+    reports a working mount as missing."""
+    script = (paths.scripts_dir() / "nas-mount.sh").read_text(encoding="utf-8")
+    assert "realpath -m" in script, "the mount point is never canonicalised"
+
+    entry = next(
+        app for app in load_catalog(paths.catalog_path()) if app.id == "nas-mount"
+    )
+    check = " ".join(entry.source.check_cmd)
+    assert "realpath -m" in check, "the status check would miss a resolved unit name"
+
+
+def test_nas_script_refuses_the_ostree_var_directories():
+    """/var/home and friends are the real targets of the symlinks, so they
+    need guarding too — the plain /home check would not catch them."""
+    script = (paths.scripts_dir() / "nas-mount.sh").read_text(encoding="utf-8")
+    for path in ("/var/home", "/var/mnt", "/var/srv"):
+        assert path in script, f"{path} is not in the refuse list"
+
+
 def test_nas_script_does_not_pin_an_nfs_version():
     """Pinning vers=4.1 fails outright on a NAS still set to NFSv3, which is
     the Synology default. Let mount.nfs negotiate instead."""

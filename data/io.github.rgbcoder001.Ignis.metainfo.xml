@@ -76,6 +76,16 @@
   -->
 
   <releases>
+    <release version="0.8.0" date="2026-07-31">
+      <description>
+        <p>Removing a server's settings, and finding out why it cannot see your files.</p>
+        <ul>
+          <li>Removing Komga or Jellyfin Server now asks whether to keep its settings. Keeping them means installing again picks up where you left off; removing them starts fresh. Your films and books are never touched either way.</li>
+          <li>After installing, Ignis checks whether the server can actually read your folder and says what it found, instead of leaving you to guess.</li>
+          <li>It also tells you what your folder is called inside the server, which is what its setup screen asks for.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.3" date="2026-07-31">
       <description>
         <p>Komga and Jellyfin Server can now reliably see a NAS.</p>

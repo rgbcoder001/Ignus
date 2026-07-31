@@ -55,9 +55,65 @@ def quadlet_dir() -> Path:
     return Path.home() / ".config" / "containers" / "systemd"
 
 
+def data_root() -> Path:
+    """The one folder Ignis keeps container data under."""
+    return Path.home() / ".local" / "share" / "ignis"
+
+
 def data_dir(app_id: str) -> Path:
     """Where a service keeps its own database and configuration."""
-    return Path.home() / ".local" / "share" / "ignis" / app_id
+    return data_root() / app_id
+
+
+def is_ignis_data_dir(path: Path) -> bool:
+    """True only for a per-app folder directly inside Ignis's data root.
+
+    The guard on the one genuinely destructive operation here: deleting a
+    user's library database is bad, deleting anything else would be
+    unforgivable.
+    """
+    try:
+        relative = path.resolve().relative_to(data_root().resolve())
+    except (ValueError, OSError):
+        return False
+    return len(relative.parts) == 1
+
+
+def _verify_script(container: str, host_path: str, inside: str) -> str:
+    """Shell that compares what the host sees with what the container sees.
+
+    Comparing the two is what makes the result actionable: files on the host
+    but none in the container means the bind mount missed the share, whereas
+    nothing on either side means the folder really is empty.
+    """
+    name = shlex.quote(container)
+    host = shlex.quote(host_path)
+    target = shlex.quote(inside)
+    return f"""
+host_count=$(ls -A {host} 2>/dev/null | wc -l)
+echo "[ignis] {host_path} holds $host_count item(s) on this computer"
+
+for _ in $(seq 1 10); do
+    if podman exec {name} test -d {target} 2>/dev/null; then
+        seen=$(podman exec {name} sh -c 'ls -A {inside} 2>/dev/null | wc -l' 2>/dev/null)
+        echo "[ignis] {inside} holds ${{seen:-0}} item(s) inside {container}"
+        if [ "${{seen:-0}}" -eq 0 ] && [ "$host_count" -gt 0 ]; then
+            echo "[ignis] WARNING: your files are not visible inside the app."
+            echo "[ignis] The share was probably not connected when the app"
+            echo "[ignis] started. Try installing it again now that {host_path}"
+            echo "[ignis] is awake."
+        elif [ "$host_count" -eq 0 ]; then
+            echo "[ignis] WARNING: {host_path} looks empty on this computer too."
+            echo "[ignis] Check the NAS is connected before setting up a library."
+        else
+            echo "[ignis] Good - point the app at {inside} when it asks."
+        fi
+        exit 0
+    fi
+    sleep 2
+done
+echo "[ignis] Could not look inside {container} to check; it may still be starting."
+"""
 
 
 def is_external_path(host_path: str) -> bool:
@@ -92,6 +148,7 @@ def build_unit(
     source: ContainerSource,
     values: dict[str, str],
     config_dir: Path,
+    container_name: str = "",
 ) -> str:
     """Assemble a Quadlet .container unit.
 
@@ -121,10 +178,12 @@ def build_unit(
     # share's idle timeout cannot pull the files out from under it.
     lines += [f"RequiresMountsFor={path}" for path in required_mounts]
 
+    lines += ["", "[Container]", f"Image={source.image}"]
+    if container_name:
+        # Named explicitly so `podman exec` can reach it. Quadlet's default
+        # (systemd-<unit>) is an implementation detail not worth depending on.
+        lines.append(f"ContainerName={container_name}")
     lines += [
-        "",
-        "[Container]",
-        f"Image={source.image}",
         f"PublishPort={source.port}:{source.port}",
         f"Volume={config_dir}:/config:Z",
     ]
@@ -206,7 +265,13 @@ class ContainerProvider(Provider):
         write_host_file(
             self.bridge,
             self.unit_path,
-            build_unit(self.app.name, self.source, values, config_dir),
+            build_unit(
+                self.app.name,
+                self.source,
+                values,
+                config_dir,
+                container_name=self.unit_name,
+            ),
         )
 
         # The container writes here as its own user; create it first so Podman
@@ -228,15 +293,30 @@ class ContainerProvider(Provider):
 
         self._enable_lingering(on_line)
         on_line(f"[ignis] {self.app.name} is running at http://localhost:{self.source.port}")
+        self._verify_volumes(values, on_line)
+
+    def _verify_volumes(self, values: dict[str, str], on_line: LineCallback) -> None:
+        """Check the service can actually read the folders it was given.
+
+        Worth the extra seconds: a container that binds an idle automount
+        sees an empty directory and reports nothing wrong. Without this the
+        only symptom is the app "not finding" files, with no clue whether the
+        share is empty, unreadable, or simply named differently inside.
+        """
         for volume in self.source.volumes:
             resolved = substitute(volume, values)
             host_path, _, rest = resolved.partition(":")
-            if is_external_path(host_path):
-                inside = rest.split(":", 1)[0]
-                on_line(
-                    f"[ignis] inside {self.app.name}, {host_path} is called {inside} — "
-                    f"use that path when it asks where your files are"
-                )
+            if not is_external_path(host_path):
+                continue
+            inside = rest.split(":", 1)[0]
+
+            on_line(f"[ignis] checking {self.app.name} can read your files...")
+            self.bridge.run(
+                ["bash", "-c", _verify_script(self.unit_name, host_path, inside)],
+                on_line=on_line,
+                timeout=90,
+                check=False,
+            )
 
     def uninstall(self, on_line: LineCallback) -> None:
         """Stop the service and delete its unit — never its data."""
@@ -251,7 +331,28 @@ class ContainerProvider(Provider):
 
         # Deliberately left in place: the config volume holds the user's
         # library database, and the media folder is not ours at all.
-        on_line(f"[ignis] your data in {data_dir(self.app.id)} has been left alone")
+        on_line(f"[ignis] your settings in {data_dir(self.app.id)} have been left alone")
+        on_line("[ignis] installing again will pick up where you left off")
+
+    def removable_data(self) -> Path | None:
+        """This app's own settings folder, if it has one worth offering to delete."""
+        return data_dir(self.app.id)
+
+    def purge(self, on_line: LineCallback) -> None:
+        """Uninstall, and delete the app's own settings and database.
+
+        Only ever touches Ignis's own folder for this app. The media folder
+        is the user's and is never in scope, whatever else happens.
+        """
+        self.uninstall(on_line)
+
+        target = data_dir(self.app.id)
+        if not is_ignis_data_dir(target):
+            raise InstallError(f"Refusing to delete {target}: not an Ignis data folder")
+
+        on_line(f"[ignis] deleting {target}")
+        self._run(["rm", "-rf", str(target)], on_line)
+        on_line(f"[ignis] {self.app.name} will start fresh next time it is installed")
 
     def launch_command(self) -> list[str] | None:
         """Opening a server means opening its web interface."""

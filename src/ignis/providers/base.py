@@ -83,6 +83,18 @@ class Provider(ABC):
         """Remove the app. Raises :class:`NotSupportedError` by default."""
         raise NotSupportedError(f"{self.app.name} can't be uninstalled from Ignis")
 
+    def removable_data(self) -> Path | None:
+        """Settings this app keeps that uninstalling deliberately leaves behind.
+
+        None when there is nothing extra to offer removing — most apps keep
+        their settings where the system does, which is not Ignis's business.
+        """
+        return None
+
+    def purge(self, on_line: LineCallback) -> None:
+        """Uninstall, and delete the settings :meth:`uninstall` preserves."""
+        self.uninstall(on_line)
+
     def launch_command(self) -> list[str] | None:
         """argv that starts the installed app, or None if Ignis can't.
 

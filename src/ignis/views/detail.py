@@ -303,7 +303,40 @@ class DetailPage(Adw.NavigationPage):
         self._run_action(title, self._provider.run_install)
 
     def _on_uninstall_clicked(self, _button: Gtk.Button) -> None:
-        self._run_action(f"Uninstalling {self._app.name}", self._provider.uninstall)
+        data = self._provider.removable_data()
+        if data is None:
+            self._run_action(f"Uninstalling {self._app.name}", self._provider.uninstall)
+            return
+
+        # This app keeps settings of its own — a library database, accounts,
+        # what has been read. Removing those is a different decision from
+        # removing the app, so ask rather than assume either way.
+        dialog = Adw.AlertDialog(
+            heading=f"Remove {self._app.name}?",
+            body=(
+                f"Its settings — including your libraries and sign-in — are "
+                f"kept in {data}, so installing it again picks up where you "
+                f"left off.\n\nYour films, books and other files are never "
+                f"touched either way."
+            ),
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("keep", "Remove, Keep Settings")
+        dialog.add_response("purge", "Remove Everything")
+        dialog.set_response_appearance("purge", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("keep")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self._on_uninstall_response)
+        dialog.present(self)
+
+    def _on_uninstall_response(self, _dialog: Adw.AlertDialog, response: str) -> None:
+        """Run whichever removal the user chose."""
+        if response == "keep":
+            self._run_action(f"Uninstalling {self._app.name}", self._provider.uninstall)
+        elif response == "purge":
+            self._run_action(
+                f"Removing {self._app.name} and its settings", self._provider.purge
+            )
 
     def _run_action(self, title: str, action: Action) -> None:
         """Run a provider action behind a ProgressDialog, off the main thread."""

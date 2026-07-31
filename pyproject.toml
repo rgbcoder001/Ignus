@@ -1,6 +1,6 @@
 [project]
 name = "ignis"
-version = "0.7.3"
+version = "0.8.0"
 description = "One-stop app installer for Bazzite"
 requires-python = ">=3.12"
 # Zero runtime dependencies by design — stdlib + PyGObject (from the GNOME

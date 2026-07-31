@@ -220,13 +220,101 @@ def test_install_canonicalises_paths_before_writing_the_unit(app, bridge, state)
     assert "Volume=/var/mnt/nas:/books:ro,rslave" in decoded
 
 
-def test_install_says_what_the_folder_is_called_inside(app, bridge, state):
-    """Komga's own setup asks for a path, and it is /books in there, not the
-    path the user typed."""
-    state.set_app_settings("komga", {"books_dir": "/var/mnt/nas"})
+def test_install_says_what_the_folder_is_called_inside():
+    """Komga's own setup asks for a path, and inside the container it is
+    /books — not the path the user typed, which does not exist in there."""
+    from ignis.providers.container import _verify_script
+
+    script = _verify_script("ignis-komga", "/var/mnt/nas", "/books")
+    assert "point the app at /books" in script
+
+
+# -- removing settings --------------------------------------------------
+
+
+def test_uninstall_keeps_settings_by_default(app, bridge, state):
     lines: list[str] = []
-    ContainerProvider(app, bridge, state).install(lines.append)
-    assert any("/books" in line and "called" in line for line in lines)
+    ContainerProvider(app, bridge, state).uninstall(lines.append)
+    removals = [c.argv for c in bridge.calls if c.argv[0] == "rm"]
+    assert not any(str(data_dir("komga")) in " ".join(call) for call in removals)
+    assert any("left alone" in line for line in lines)
+
+
+def test_purge_removes_the_settings_folder(app, bridge, state):
+    ContainerProvider(app, bridge, state).purge(lambda _l: None)
+    removals = [" ".join(c.argv) for c in bridge.calls if c.argv[0] == "rm"]
+    assert any(str(data_dir("komga")) in call for call in removals)
+
+
+def test_purge_still_never_touches_the_media_folder(app, bridge, state):
+    state.set_app_settings("komga", {"books_dir": "/var/mnt/nas"})
+    ContainerProvider(app, bridge, state).purge(lambda _l: None)
+    removals = [" ".join(c.argv) for c in bridge.calls if c.argv[0] == "rm"]
+    assert not any("/var/mnt/nas" in call for call in removals)
+
+
+def test_removable_data_points_at_our_own_folder(app, bridge, state):
+    assert ContainerProvider(app, bridge, state).removable_data() == data_dir("komga")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/etc",
+        "/",
+        "~/.local/share",
+        "~/.local/share/ignis",
+        "~/.local/share/ignis/komga/nested",
+        "~/Documents",
+    ],
+)
+def test_only_a_per_app_folder_counts_as_deletable(path):
+    """The guard on the one destructive operation in this provider."""
+    from ignis.providers.container import is_ignis_data_dir
+
+    target = Path(path.replace("~", str(Path.home())))
+    assert not is_ignis_data_dir(target), path
+
+
+def test_a_per_app_folder_is_deletable():
+    from ignis.providers.container import is_ignis_data_dir
+
+    assert is_ignis_data_dir(data_dir("komga"))
+
+
+def test_purge_refuses_a_data_dir_outside_our_root(app, bridge, state, monkeypatch):
+    from ignis.providers import container as module
+    from ignis.providers.base import InstallError
+
+    monkeypatch.setattr(module, "data_dir", lambda _id: Path.home() / "Documents")
+    with pytest.raises(InstallError) as excinfo:
+        ContainerProvider(app, bridge, state).purge(lambda _l: None)
+    assert "Refusing to delete" in str(excinfo.value)
+
+
+# -- verifying the container can read the share -------------------------
+
+
+def test_install_verifies_the_container_can_see_the_files(app, bridge, state):
+    """Without this the only symptom is the app "not finding" anything, with
+    no way to tell an empty share from a bind mount that missed it."""
+    state.set_app_settings("komga", {"books_dir": "/var/mnt/nas"})
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+
+    checks = [c.argv[2] for c in bridge.calls if c.argv[:2] == ["bash", "-c"]]
+    verify = next((c for c in checks if "podman exec" in c), None)
+    assert verify is not None, "no in-container check was run"
+    assert "/var/mnt/nas" in verify and "/books" in verify
+    assert "ignis-komga" in verify
+
+
+def test_verification_compares_host_and_container_counts():
+    from ignis.providers.container import _verify_script
+
+    script = _verify_script("ignis-komga", "/var/mnt/nas", "/books")
+    assert "ls -A /var/mnt/nas" in script
+    assert "ls -A /books" in script
+    assert "WARNING" in script
 
 
 # -- placeholder guard --------------------------------------------------

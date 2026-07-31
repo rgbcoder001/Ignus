@@ -85,6 +85,10 @@ else
     echo "Skipping the reachability check (showmount is not installed)."
 fi
 
+# Type=nfs with no vers= on purpose: mount.nfs negotiates the highest version
+# both ends support (4.2 down to 3). Pinning vers=4.1 fails outright on a NAS
+# whose "maximum NFS protocol" is still set to NFSv3, which is the Synology
+# default and an easy setting to miss.
 MOUNT_UNIT="[Unit]
 Description=NAS media at ${mount_point} (managed by Ignis)
 After=network-online.target
@@ -93,8 +97,8 @@ Wants=network-online.target
 [Mount]
 What=${nas_host}:${export_path}
 Where=${mount_point}
-Type=nfs4
-Options=rw,noatime,_netdev,vers=4.1
+Type=nfs
+Options=rw,noatime
 
 [Install]
 WantedBy=multi-user.target
@@ -119,29 +123,65 @@ echo "Setting this up needs administrator rights, so a password box will appear.
 # (An earlier version interpolated ${mount_point} directly, which let a
 # crafted mount point break out of its quoting and run as root.)
 pkexec /usr/bin/bash -c '
-set -euo pipefail
+set -uo pipefail
 mount_unit="$1"; automount_unit="$2"; target="$3"; unit_file="$4"; automount_file="$5"
+source="$6"
 unit_dir=/etc/systemd/system
+
 mkdir -p "$target"
+
+# Try the mount directly first. systemd only ever reports "Job failed. See
+# journalctl -xe", which tells the user nothing. mount(8) says exactly what
+# is wrong - "access denied by server", "no route to host" - and that is the
+# message that reaches the progress window.
+echo "Testing the connection..."
+if ! mount_error=$(timeout 30 mount -t nfs -o rw,noatime "$source" "$target" 2>&1); then
+    echo "Could not connect to the NAS:" >&2
+    echo "  ${mount_error}" >&2
+    echo "" >&2
+    echo "The usual causes are:" >&2
+    echo "  - this computer is not listed in the shared folder NFS Permissions" >&2
+    echo "  - the folder path is wrong. Use the mount path the NAS shows you," >&2
+    echo "    such as /volume1/Media, not the name of the shared folder" >&2
+    echo "  - NFS is switched on, but that folder has no NFS rule yet" >&2
+    exit 1
+fi
+umount "$target" 2>/dev/null || true
+echo "Connection works."
+
 printf "%s" "$mount_unit" > "${unit_dir}/${unit_file}"
 printf "%s" "$automount_unit" > "${unit_dir}/${automount_file}"
 chmod 0644 "${unit_dir}/${unit_file}" "${unit_dir}/${automount_file}"
 systemctl daemon-reload
-systemctl enable --now "$automount_file"
-' _ "$MOUNT_UNIT" "$AUTOMOUNT_UNIT" "$mount_point" "$UNIT_NAME" "$AUTOMOUNT_NAME"
+
+if ! systemctl enable --now "$automount_file"; then
+    echo "Could not switch on the automatic connection:" >&2
+    systemctl status --no-pager --lines=0 "$automount_file" 2>&1 | sed "s/^/  /" >&2
+    journalctl --no-pager --lines=15 -u "$automount_file" -u "$unit_file" 2>&1 \
+        | sed "s/^/  /" >&2
+    # Leave nothing half-installed: otherwise the app reports a broken mount
+    # as working, which is worse than failing.
+    systemctl disable "$automount_file" >/dev/null 2>&1 || true
+    rm -f "${unit_dir}/${unit_file}" "${unit_dir}/${automount_file}"
+    systemctl daemon-reload
+    exit 1
+fi
+' _ "$MOUNT_UNIT" "$AUTOMOUNT_UNIT" "$mount_point" "$UNIT_NAME" "$AUTOMOUNT_NAME" \
+    "${nas_host}:${export_path}"
 
 echo
 echo "Checking the share responds..."
 # Bounded: a hard NFS mount that stops answering would otherwise hang here
 # forever, stuck behind a progress dialog with no way out.
-if timeout 20 ls "$mount_point" >/dev/null 2>&1; then
+if timeout 30 ls "$mount_point" >/dev/null 2>&1; then
     echo "Mounted. Your NAS is available at ${mount_point}"
     echo
     echo "Open it in Files, or point an app at that folder. It will connect"
     echo "on its own whenever something reads it, and will not hold up"
     echo "startup when the NAS is switched off."
 else
-    echo "The units are installed, but reading ${mount_point} did not work." >&2
-    echo "Check the NFS Permissions for this machine's IP on the NAS." >&2
+    echo "The connection is set up, but reading ${mount_point} did not respond" >&2
+    echo "in time. The NAS may just be slow to wake - try opening" >&2
+    echo "${mount_point} in Files in a moment." >&2
     exit 1
 fi

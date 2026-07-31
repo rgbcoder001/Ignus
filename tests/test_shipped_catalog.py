@@ -86,6 +86,36 @@ def test_nas_script_never_interpolates_user_input_into_the_root_shell():
     assert "$1" in body or '"$1"' in body  # data arrives as arguments
 
 
+def test_nas_script_surfaces_a_real_reason_when_it_fails():
+    """systemd only says "Job failed. See journalctl -xe", which is useless in
+    a progress window. The script must try the mount itself (mount(8) gives a
+    real reason) and dump unit status/journal if enabling still fails."""
+    text = (paths.scripts_dir() / "nas-mount.sh").read_text(encoding="utf-8")
+    assert "mount -t nfs" in text, "no direct mount test to surface a real error"
+    assert "journalctl" in text and "systemctl status" in text
+
+
+def test_nas_script_cleans_up_after_a_failed_enable():
+    """A half-installed mount reads as working in the catalogue, which is
+    worse than failing outright."""
+    text = (paths.scripts_dir() / "nas-mount.sh").read_text(encoding="utf-8")
+    enable_block = text[text.index("if ! systemctl enable --now") :]
+    assert "systemctl disable" in enable_block
+    assert "rm -f" in enable_block
+
+
+def test_nas_script_does_not_pin_an_nfs_version():
+    """Pinning vers=4.1 fails outright on a NAS still set to NFSv3, which is
+    the Synology default. Let mount.nfs negotiate instead."""
+    text = (paths.scripts_dir() / "nas-mount.sh").read_text(encoding="utf-8")
+    # Only the unit's own options matter; the comment above it mentions
+    # vers=4.1 precisely to explain why it is not used.
+    options = [ln for ln in text.splitlines() if ln.startswith("Options=")]
+    assert options, "the mount unit has no Options line"
+    assert all("vers=" not in line for line in options), options
+    assert "Type=nfs\n" in text
+
+
 def test_container_entries_keep_their_media_volumes_read_only():
     """A server has no business writing to someone's library, whatever the
     NFS export allows."""

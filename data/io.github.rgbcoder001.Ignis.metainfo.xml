@@ -76,6 +76,17 @@
   -->
 
   <releases>
+    <release version="0.7.1" date="2026-07-31">
+      <description>
+        <p>Readable errors, and a NAS connection that explains itself.</p>
+        <ul>
+          <li>Error windows can always be closed and scrolled again. A long command could previously push the buttons off the bottom of the window.</li>
+          <li>Connecting to a NAS now tells you what actually went wrong — that the folder path is wrong, or this computer is not allowed — instead of a message telling you to read the system journal.</li>
+          <li>Connecting to a NAS no longer insists on NFS version 4.1, which fails on a NAS left at its default setting.</li>
+          <li>A failed NAS connection no longer leaves a half-finished setup behind that looked like it had worked.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-07-30">
       <description>
         <p>Jellyfin Server, and an important security fix.</p>

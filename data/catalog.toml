@@ -270,7 +270,8 @@ start on its own and gives you a link to open it.
 
 Point it at the folder holding your books. If those live on a NAS, connect \
 to that first — Komga can only read what this computer can already see. \
-Komga reads your files and never changes them."""
+When Komga asks where your library is, the folder you chose appears inside \
+it as /books. Komga reads your files and never changes them."""
 category = "media"
 hardware = []
 
@@ -316,6 +317,46 @@ file = "handbrake-av1-presets.sh"
 check_cmd = ["bash", "-c", 'grep -q "(Live) AV1 Preset" "$HOME/.var/app/fr.handbrake.ghb/config/ghb/presets.json" 2>/dev/null']
 
 [[apps]]
+id = "jellyfin-server"
+name = "Jellyfin Server"
+summary = "Host your films and shows for every screen you own"
+description = """Turns this computer into your own private streaming \
+service. Jellyfin Server holds your films, shows and music, and everything \
+else in the house — TVs, phones, tablets, other computers — watches from it \
+using the Jellyfin app. No subscription, and nothing leaves your home.
+
+Like Komga, it has no window of its own: it runs quietly in the background \
+and you manage it in your web browser. Ignis starts it for you and the Open \
+button takes you to its setup, where you sign in and pick your libraries. \
+When it asks where your media is, the folder you chose appears inside it \
+as /media.
+
+If your films live on a NAS, connect to that first — the server can only \
+share what this computer can already see. It reads your files and never \
+changes them. To watch on this same PC, also install Jellyfin Media Player."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "container"
+image = "docker.io/jellyfin/jellyfin:latest"
+port = 8096
+# The library is read-only on purpose; the cache is Jellyfin's own scratch
+# space (artwork, transcodes) and lives under the user's home. %h is
+# expanded by systemd when the unit runs.
+volumes = [
+  "{media_dir}:/media:ro",
+  "%h/.local/share/ignis/jellyfin-server/cache:/cache:Z",
+]
+
+[[apps.settings]]
+key = "media_dir"
+label = "Where your films and shows are"
+type = "path"
+default = "/mnt/nas"
+help = "The folder holding your media. Use the NAS folder if you connected one."
+
+[[apps]]
 id = "jellyfin-player"
 name = "Jellyfin Media Player"
 summary = "Watch your own movie and TV collection"
@@ -323,8 +364,10 @@ description = """Jellyfin is a free way to keep your own films and shows on a \
 computer at home and watch them on any screen in the house — think of it as \
 your own private Netflix. This is the app you watch with.
 
-It needs a Jellyfin server running somewhere on your network. If nobody has \
-set one up, this app has nothing to connect to."""
+It needs a Jellyfin server running somewhere on your network. If this \
+computer is going to be the one holding the films, install Jellyfin Server \
+from this list and this player can connect to it right here at \
+http://localhost:8096."""
 category = "media"
 hardware = []
 

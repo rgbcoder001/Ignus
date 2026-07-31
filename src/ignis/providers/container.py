@@ -8,6 +8,7 @@ which Podman recommends over ``podman generate systemd``. Ignis writes a
 from __future__ import annotations
 
 import logging
+import re
 import shlex
 from pathlib import Path
 
@@ -25,6 +26,23 @@ from ignis.providers.base import (
 log = logging.getLogger(__name__)
 
 UNIT_PREFIX = "ignis-"
+
+#: A setting placeholder that survived substitution — a catalog bug.
+PLACEHOLDER = re.compile(r"\{[a-z][a-z0-9_]*\}")
+
+
+def unresolved_placeholders(source: ContainerSource, values: dict[str, str]) -> list[str]:
+    """Placeholders in the source that the user's answers don't cover.
+
+    Normally impossible — the setup dialog runs whenever an app declares
+    settings — but a catalog typo (placeholder key not matching a setting
+    key) would otherwise produce a literal ``{books_dir}`` directory on disk
+    and a service pointed at nothing.
+    """
+    leftover: set[str] = set()
+    for item in (*source.volumes, *source.environment):
+        leftover.update(PLACEHOLDER.findall(substitute(item, values)))
+    return sorted(leftover)
 
 
 def quadlet_dir() -> Path:
@@ -113,6 +131,14 @@ class ContainerProvider(Provider):
         values = self.state.app_settings(self.app.id)
         config_dir = data_dir(self.app.id)
 
+        missing = unresolved_placeholders(self.source, values)
+        if missing:
+            raise InstallError(
+                f"{self.app.name} is missing details it needs: "
+                f"{', '.join(missing)}. Open its page and install again to be "
+                "asked for them."
+            )
+
         on_line(f"[ignis] writing service definition to {self.unit_path}")
         write_host_file(
             self.bridge,
@@ -121,8 +147,11 @@ class ContainerProvider(Provider):
         )
 
         # The container writes here as its own user; create it first so Podman
-        # does not make it root-owned.
+        # does not make it root-owned. Same for any writable volume under the
+        # user's home (e.g. a cache dir declared with the %h specifier).
         self._run(["mkdir", "-p", str(config_dir)], on_line)
+        for host_dir in self._home_volume_dirs(values):
+            self._run(["mkdir", "-p", host_dir], on_line)
 
         on_line("[ignis] asking systemd to pick up the new service")
         self._run(["systemctl", "--user", "daemon-reload"], on_line)
@@ -168,6 +197,22 @@ class ContainerProvider(Provider):
             f"Reachable at http://localhost:{self.source.port}"
         )
 
+    def _home_volume_dirs(self, values: dict[str, str]) -> list[str]:
+        """Host paths of writable volumes that live under the user's home.
+
+        Only home paths: a media folder on /mnt is the NAS's and must already
+        exist — creating it here would just mask a missing mount.
+        """
+        home = Path.home()
+        dirs: list[str] = []
+        for volume in self.source.volumes:
+            host = substitute(volume, values).split(":", 1)[0]
+            if host.startswith("%h/"):
+                host = str(home / host[3:])
+            if host.startswith(str(home)):
+                dirs.append(host)
+        return dirs
+
     def _enable_lingering(self, on_line: LineCallback) -> None:
         """Let the service run without the user being logged in.
 
@@ -177,8 +222,19 @@ class ContainerProvider(Provider):
         user = self.bridge.run(["id", "-un"], timeout=15, check=False)
         if not user.ok or not user.output.strip():
             return
+        username = user.output.strip().splitlines()[0]
+
+        # Already on? Then don't ask for a password again on every reinstall.
+        linger = self.bridge.run(
+            ["loginctl", "show-user", username, "--property=Linger"],
+            timeout=15,
+            check=False,
+        )
+        if linger.ok and "Linger=yes" in linger.output:
+            return
+
         result = self.bridge.run(
-            ["pkexec", "loginctl", "enable-linger", user.output.strip().splitlines()[0]],
+            ["pkexec", "loginctl", "enable-linger", username],
             on_line=on_line,
             timeout=120,
             check=False,

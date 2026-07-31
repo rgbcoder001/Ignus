@@ -143,3 +143,84 @@ def test_preview_names_the_unit_and_address(app, bridge, state):
     preview = ContainerProvider(app, bridge, state).command_preview()
     assert "ignis-komga" in preview
     assert "25600" in preview
+
+
+# -- placeholder guard --------------------------------------------------
+
+
+def test_unanswered_placeholder_is_an_error_not_a_literal_directory(app, bridge, state):
+    """A catalog typo must not put a folder named {books_dir} on disk."""
+    from ignis.providers.base import InstallError
+
+    with pytest.raises(InstallError) as excinfo:
+        ContainerProvider(app, bridge, state).install(lambda _l: None)
+    assert "{books_dir}" in str(excinfo.value)
+    assert bridge.calls == []  # nothing was written or started
+
+
+def test_unresolved_placeholders_helper():
+    from ignis.providers.container import unresolved_placeholders
+
+    assert unresolved_placeholders(SOURCE, {}) == ["{books_dir}"]
+    assert unresolved_placeholders(SOURCE, {"books_dir": "/mnt/nas"}) == []
+
+
+# -- lingering ----------------------------------------------------------
+
+
+def linger_bridge(state_value: str) -> FakeBridge:
+    bridge = FakeBridge()
+    bridge.set_result(["id", "-un"], output="bazzite")
+    bridge.set_result(
+        ["loginctl", "show-user", "bazzite", "--property=Linger"],
+        output=f"Linger={state_value}",
+    )
+    return bridge
+
+
+def test_lingering_already_on_skips_the_password_prompt(app, state):
+    """Reinstalling must not ask for a password it does not need."""
+    bridge = linger_bridge("yes")
+    state.set_app_settings("komga", {"books_dir": "/mnt/nas"})
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+
+    assert not any(c.argv[0] == "pkexec" for c in bridge.calls)
+
+
+def test_lingering_off_triggers_the_one_time_prompt(app, state):
+    bridge = linger_bridge("no")
+    state.set_app_settings("komga", {"books_dir": "/mnt/nas"})
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+
+    assert any(
+        c.argv[:3] == ["pkexec", "loginctl", "enable-linger"] for c in bridge.calls
+    )
+
+
+# -- home volume pre-creation -------------------------------------------
+
+
+def test_home_cache_volume_is_created_before_start(state, bridge):
+    """A %h cache volume is created as the user, so Podman never has to."""
+    source = ContainerSource(
+        image="docker.io/jellyfin/jellyfin:latest",
+        port=8096,
+        volumes=("{media_dir}:/media:ro", "%h/.local/share/ignis/js/cache:/cache:Z"),
+    )
+    app = App(id="js", name="JS", summary="s", category=Category.MEDIA, source=source)
+    state.set_app_settings("js", {"media_dir": "/mnt/nas"})
+
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+
+    expected = str(Path.home() / ".local/share/ignis/js/cache")
+    mkdirs = [c.argv for c in bridge.calls if c.argv[:2] == ["mkdir", "-p"]]
+    assert any(call[2] == expected for call in mkdirs)
+    # The media folder is the NAS's own; Ignis must never create it.
+    assert not any("/mnt/nas" in call[2] for call in mkdirs)
+
+
+def test_media_volume_outside_home_is_never_created(app, bridge, state):
+    state.set_app_settings("komga", {"books_dir": "/mnt/nas/Books"})
+    ContainerProvider(app, bridge, state).install(lambda _l: None)
+    mkdirs = [c.argv for c in bridge.calls if c.argv[:2] == ["mkdir", "-p"]]
+    assert not any("/mnt/nas" in call[2] for call in mkdirs)

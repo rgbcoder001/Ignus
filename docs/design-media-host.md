@@ -1,8 +1,10 @@
 # Design — connecting Bazzite to a NAS
 
-Status: **built in v0.6.0.** The settings layer, the NAS mount and the
-container source type all exist. §6 (running media servers) was pulled back
-into scope for Komga, which has no desktop package and so had no alternative.
+Status: **built.** v0.6.0 delivered the settings layer, the NAS mount and the
+container source type (§6 was pulled back into scope for Komga, which has no
+desktop package and so had no alternative). v0.7.0 added Jellyfin Server as a
+catalog entry with no new code — which was the test this design set for
+itself — and hardened the NAS script (see the security note in §4).
 
 The goal is narrow and worth stating plainly: **make connecting this machine
 to a NAS simple, and make the connection survive a reboot.** Everything else
@@ -68,9 +70,15 @@ something needs them.)
 ### Flow
 
 If an entry declares `settings` and has no saved values, Install opens a
-dialog first. Values are substituted into the provider's command as
-`{nas_host}` placeholders, and stored in `state.json` under
-`app_settings.<app_id>`.
+dialog first. Answers are stored in `state.json` under
+`app_settings.<app_id>` and reach the provider two ways: **scripts** get them
+as shlex-quoted shell variables prepended below the shebang (never
+interpolated into the script text, so an answer containing a quote cannot
+become code), while **container units and check commands** get `{nas_host}`
+placeholders substituted as plain text. An unanswered placeholder stays
+literal, which makes a not-yet-configured status check fail — correctly
+reading as "not installed" — and makes a container install error out rather
+than create a directory literally named `{books_dir}`.
 
 ## 3. The export path is the usual mistake
 
@@ -143,50 +151,66 @@ that usually argues for `soft` is already handled by automount plus
   the user's NAS, and Ignis has no business deleting from it. The refusal
   guard already used for GitHub-app uninstall applies here.
 
+### Security note: the privileged step (added after review)
+
+The script escalates once with `pkexec` to write the units. The rule the
+implementation must keep: **nothing the user typed is ever interpolated into
+the root shell as code.** The `-c` body is single-quoted and every value —
+unit contents, mount point, unit file names — arrives as a positional
+argument, expanded only inside double quotes as data. The first version
+interpolated `${mount_point}` directly into the root command string, which
+let a crafted answer like `/mnt/x'; rm -rf /; '` escape its quoting and run
+as root; the settings dialog's "starts with a slash" check was no defence.
+
+The script also refuses to mount over critical system directories or any
+non-empty folder (hiding a user's files under a mount is unrecoverable-by-
+appearance), and the post-mount check runs under `timeout` so a hard NFS
+mount that stops answering cannot hang the install behind a progress dialog.
+
 ## 5. Phases
 
-| Phase | Scope |
-|---|---|
-| A | Settings layer: `[[apps.settings]]` schema, config dialog, storage in `state.json` |
-| B | NAS mount catalog entry + bundled script |
+| Phase | Scope | Status |
+|---|---|---|
+| A | Settings layer: `[[apps.settings]]` schema, config dialog, storage in `state.json` | built (v0.6.0) |
+| B | NAS mount catalog entry + bundled script | built (v0.6.0), hardened (v0.7.0) |
+| C | `container` source type + Komga | built (v0.6.0) |
+| D | Jellyfin Server — a catalog entry only, no new code | built (v0.7.0) |
 
-That is the whole committed scope. Two phases, no credentials, no containers.
+No credentials anywhere: choosing NFS removed the only password this design
+ever had to handle.
 
-## 6. Running media servers — built for Komga only
+## 6. Running media servers — built for Komga and Jellyfin Server
 
-**Revised:** originally optional, but Komga has no desktop package (see the
-constraint at the end of this section), so "install Komga" had no shortcut.
-The `container` source type was built for it.
+**History:** this section was originally optional. It came into scope because
+Komga has no desktop package at all — it is a server reached through a
+browser, with no Flathub entry, so "just install Komga" had no shortcut. The
+`container` source type was built for it, and Jellyfin Server then cost one
+catalog entry, which was the test the design set for itself. The Jellyfin
+*client* (Media Player) stays in the catalog alongside it: the server hosts
+the library, the player watches it.
 
-Jellyfin's **server** is still deliberately out of scope — the client is in
-the catalog and is what most people actually want. Adding the server later is
-now a catalog entry rather than new code, which is the test the design set
-for itself.
-
-Ignis *could* grow a `container` source type, writing rootless Podman
+How it works: a `container` catalog entry becomes a rootless Podman
 [Quadlet](https://docs.bazzite.gg/Installing_and_Managing_Software/Quadlet/)
-units to `~/.config/containers/systemd/` to run Jellyfin server
-(`docker.io/jellyfin/jellyfin`) and Komga (`docker.io/gotson/komga`). Bazzite
-documents Quadlet as its own way to run services, so the mechanism is sound.
+unit written to the real `~/.config/containers/systemd/` (Bazzite documents
+Quadlet as its own way to run services). Status is
+`systemctl --user is-active`; the Open button opens
+`http://localhost:<port>`; lingering is enabled once via `pkexec` (and
+skipped on later installs if already on) so services survive logging out.
 
-**Why it is not in scope:**
+What Ignis deliberately does **not** do: library mapping, users, metadata —
+Jellyfin's and Komga's own web setup does that far better than an installer
+could. Ignis stops at "running, can see the media folder, browser open at
+the right address."
 
-- The client is what most people want, and the Jellyfin client is already in
-  the catalog.
-- Library mapping is done well by Jellyfin's and Komga's own web interfaces.
-  Ignis reimplementing that would be worse than what already exists.
-- It turns an app installer into a service manager, which is a much larger
-  thing to maintain and to get right.
+Standing rules for any container entry:
 
-**One constraint to know if this is ever revisited:** Komga has no desktop
-package. It is a server, reached through a browser, with no Flathub entry —
-so "just install Komga" is not available as a simple catalog entry the way
-Jellyfin's client is. Komga specifically requires the container work in this
-section; there is no shortcut.
-
-If it is built, the volume mount stays read-only (`{media_dir}:/media:ro`)
-regardless of the NFS export being read/write, and uninstall must never remove
-a media folder or a config volume.
+- The media volume stays read-only (`{media_dir}:/media:ro`) regardless of
+  the NFS export being read/write — export permission and container view are
+  separate controls.
+- Uninstall removes the unit file and nothing else. The config volume holds
+  the user's library database; the media folder was never ours.
+- Placeholders that survive substitution are an install-time error, not a
+  literal directory on disk.
 
 ## 7. Risks
 

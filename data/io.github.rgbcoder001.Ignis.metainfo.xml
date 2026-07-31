@@ -76,6 +76,17 @@
   -->
 
   <releases>
+    <release version="0.7.0" date="2026-07-30">
+      <description>
+        <p>Jellyfin Server, and an important security fix.</p>
+        <ul>
+          <li>Jellyfin Server: turn this computer into your own private streaming service, watched from any screen in the house.</li>
+          <li>Security: connecting to a NAS no longer passes what you typed to a privileged command in a way that could be abused. Please update.</li>
+          <li>Connecting to a NAS now refuses to mount over important folders or non-empty ones, and can no longer hang if the NAS stops answering mid-setup.</li>
+          <li>Services only ask for your password to enable start-at-boot once, not on every reinstall.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-07-30">
       <description>
         <p>Connecting to a network drive, and your own comics library.</p>

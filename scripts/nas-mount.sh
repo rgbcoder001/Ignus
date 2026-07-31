@@ -35,6 +35,31 @@ case "$export_path" in
         ;;
 esac
 
+# Normalise a trailing slash so the checks below compare like with like.
+mount_point="${mount_point%/}"
+[ -z "$mount_point" ] && mount_point="/"
+
+# Mounting over a system directory would hide it, which on some of these
+# breaks the machine outright. Protect the user from a slip of the keyboard.
+for forbidden in / /home /root /etc /usr /var /boot /bin /sbin /lib /lib64 \
+                 /opt /srv /tmp /proc /sys /dev /run /mnt /media "$HOME"; do
+    if [ "$mount_point" = "$forbidden" ]; then
+        echo "Refusing to mount at ${mount_point} - that would hide an" >&2
+        echo "important folder. Pick somewhere inside it instead, like" >&2
+        echo "/mnt/nas." >&2
+        exit 1
+    fi
+done
+
+# A folder that already holds files would have them hidden by the mount.
+# A folder that is already this mount (re-running) is fine.
+if [ -d "$mount_point" ] && ! mountpoint -q "$mount_point" \
+    && [ -n "$(ls -A "$mount_point" 2>/dev/null)" ]; then
+    echo "${mount_point} already contains files. Mounting there would hide" >&2
+    echo "them. Pick an empty location, like /mnt/nas." >&2
+    exit 1
+fi
+
 UNIT_NAME="$(systemd-escape --path --suffix=mount "$mount_point")"
 AUTOMOUNT_NAME="${UNIT_NAME%.mount}.automount"
 UNIT_DIR="/etc/systemd/system"
@@ -88,19 +113,28 @@ WantedBy=multi-user.target
 
 echo "Setting this up needs administrator rights, so a password box will appear."
 
-pkexec /usr/bin/bash -c "
+# The -c body is single-quoted ON PURPOSE: nothing the user typed is ever
+# interpolated into this root shell as code. Every value arrives as a
+# positional argument and is only ever expanded inside double quotes as data.
+# (An earlier version interpolated ${mount_point} directly, which let a
+# crafted mount point break out of its quoting and run as root.)
+pkexec /usr/bin/bash -c '
 set -euo pipefail
-mkdir -p '${mount_point}'
-printf '%s' \"\$1\" > '${UNIT_DIR}/${UNIT_NAME}'
-printf '%s' \"\$2\" > '${UNIT_DIR}/${AUTOMOUNT_NAME}'
-chmod 0644 '${UNIT_DIR}/${UNIT_NAME}' '${UNIT_DIR}/${AUTOMOUNT_NAME}'
+mount_unit="$1"; automount_unit="$2"; target="$3"; unit_file="$4"; automount_file="$5"
+unit_dir=/etc/systemd/system
+mkdir -p "$target"
+printf "%s" "$mount_unit" > "${unit_dir}/${unit_file}"
+printf "%s" "$automount_unit" > "${unit_dir}/${automount_file}"
+chmod 0644 "${unit_dir}/${unit_file}" "${unit_dir}/${automount_file}"
 systemctl daemon-reload
-systemctl enable --now '${AUTOMOUNT_NAME}'
-" _ "$MOUNT_UNIT" "$AUTOMOUNT_UNIT"
+systemctl enable --now "$automount_file"
+' _ "$MOUNT_UNIT" "$AUTOMOUNT_UNIT" "$mount_point" "$UNIT_NAME" "$AUTOMOUNT_NAME"
 
 echo
 echo "Checking the share responds..."
-if ls "$mount_point" >/dev/null 2>&1; then
+# Bounded: a hard NFS mount that stops answering would otherwise hang here
+# forever, stuck behind a progress dialog with no way out.
+if timeout 20 ls "$mount_point" >/dev/null 2>&1; then
     echo "Mounted. Your NAS is available at ${mount_point}"
     echo
     echo "Open it in Files, or point an app at that folder. It will connect"

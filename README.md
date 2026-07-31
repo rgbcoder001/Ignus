@@ -58,10 +58,10 @@ implementation detail you never have to think about:
 |---|---|
 | Gaming | Heroic, Lutris, Prism Launcher (Minecraft), Bottles, ProtonUp-Qt |
 | Emulation | EmuDeck, GitHub Launcher |
-| Media | VLC, mpv, HandBrake, Jellyfin |
+| Media | VLC, mpv, HandBrake, Jellyfin (server and player), Komga |
 | Streaming | GPU Screen Recorder, OBS Studio, Sunshine, Moonlight |
 | Chat | Vesktop, Discord |
-| System | Mission Center, Flatseal, OpenRGB, CoolerControl, LACT |
+| System | NAS connection, Tailscale, Mission Center, Flatseal, OpenRGB, CoolerControl, LACT |
 
 Every app says in plain language what it does, why you might want it, and
 when you can safely skip it — written for people arriving from Windows, not

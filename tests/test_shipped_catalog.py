@@ -47,6 +47,29 @@ def test_summaries_are_not_just_the_app_name():
         assert app.summary.strip().lower() != app.name.strip().lower()
 
 
+def test_every_script_entry_points_at_a_real_script():
+    """A typo'd filename would otherwise only surface when someone clicks
+    Install on the actual machine."""
+    from ignis.core.catalog import ScriptSource
+    from ignis.providers.base import resolve_script
+
+    for app in load_catalog(paths.catalog_path()):
+        if isinstance(app.source, ScriptSource):
+            script = resolve_script(app.source.file)
+            assert script.is_file(), f"{app.id} references a missing script: {script}"
+        if app.post_install:
+            script = resolve_script(app.post_install)
+            assert script.is_file(), f"{app.id} post_install is missing: {script}"
+
+
+def test_bundled_scripts_are_not_left_half_written():
+    """Every bundled script should be a runnable bash script."""
+    for script in sorted(paths.scripts_dir().glob("*.sh")):
+        text = script.read_text(encoding="utf-8")
+        assert text.startswith("#!"), f"{script.name} has no shebang"
+        assert "\r\n" not in text, f"{script.name} has CRLF line endings"
+
+
 def test_every_ujust_entry_specifies_a_non_interactive_action():
     """A ujust recipe with no action opens a menu needing a terminal, which
     Ignis cannot answer — it either fails or, worse, exits 0 having done

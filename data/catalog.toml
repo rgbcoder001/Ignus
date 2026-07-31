@@ -209,6 +209,32 @@ type = "flathub"
 ref = "fr.handbrake.ghb"
 
 [[apps]]
+id = "handbrake-av1-presets"
+name = "AV1 presets for HandBrake"
+summary = "Ready-made high-quality AV1 conversion settings"
+description = """Adds three ready-made conversion settings to HandBrake for \
+making high-quality video that takes up far less space.
+
+AV1 is a modern video format that keeps more detail at a smaller size than \
+older ones, in exchange for taking longer to convert. The three settings are \
+tuned for different material: one for live action, one for older live action, \
+and one for animation, which needs different handling to avoid smearing.
+
+All of them keep your original audio untouched and add one widely-compatible \
+surround track next to it, so the result plays on almost anything.
+
+Install HandBrake first — this adds settings to it rather than being a \
+separate program. Close HandBrake before installing these."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "script"
+file = "handbrake-av1-presets.sh"
+# The Flatpak HandBrake keeps its presets under ~/.var/app, not ~/.config.
+check_cmd = ["bash", "-c", 'grep -q "(Live) AV1 Preset" "$HOME/.var/app/fr.handbrake.ghb/config/ghb/presets.json" 2>/dev/null']
+
+[[apps]]
 id = "jellyfin-player"
 name = "Jellyfin Media Player"
 summary = "Watch your own movie and TV collection"

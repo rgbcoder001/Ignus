@@ -1,6 +1,6 @@
 """Ignis — a one-stop app installer for Bazzite."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 APP_ID = "io.github.rgbcoder001.Ignis"
 APP_NAME = "Ignis"

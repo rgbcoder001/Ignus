@@ -370,6 +370,31 @@ ref = "com.discordapp.Discord"
 # ── System ────────────────────────────────────────────────────────────
 
 [[apps]]
+id = "tailscale"
+name = "Tailscale"
+summary = "Reach this computer securely from anywhere"
+description = """Creates a private network between your own devices, so your \
+phone or laptop can reach this computer from anywhere in the world as though \
+you were sat at home — without opening any ports on your router or putting \
+anything on the public internet.
+
+The reason to want it: if this machine is holding your films, music or books, \
+this is how you get at them while you are out, safely.
+
+Bazzite already includes Tailscale — this switches it on. You will be asked \
+for your password, because starting a system service needs administrator \
+rights. One step is left to you afterwards: run `tailscale up` in a terminal \
+and open the link it prints. Signing in has to happen in a browser, so no \
+installer can do it for you, and you only do it once."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "script"
+file = "tailscale-enable.sh"
+check_cmd = ["systemctl", "is-enabled", "tailscaled.service"]
+
+[[apps]]
 id = "mission-center"
 name = "Mission Center"
 summary = "See what is slowing your computer down"

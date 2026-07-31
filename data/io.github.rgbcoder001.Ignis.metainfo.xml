@@ -76,6 +76,11 @@
   -->
 
   <releases>
+    <release version="0.5.0" date="2026-07-30">
+      <description>
+        <p>Adds Tailscale, which lets your other devices reach this computer securely from anywhere without opening ports on your router.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-07-30">
       <description>
         <p>Adds an optional set of high-quality AV1 conversion settings for HandBrake, which keep your original audio and add a compatible surround track alongside it.</p>

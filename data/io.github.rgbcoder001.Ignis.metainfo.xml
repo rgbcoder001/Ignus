@@ -76,6 +76,16 @@
   -->
 
   <releases>
+    <release version="0.4.0" date="2026-07-30">
+      <description>
+        <p>A bigger catalogue, explained in plain language.</p>
+        <ul>
+          <li>Nine more apps, including Moonlight to pair with Sunshine, Vesktop for Discord screen sharing with sound, VLC, Lutris, Prism Launcher and OpenRGB.</li>
+          <li>Every app now explains what it is, why you might want it, and when you can skip it — written for people arriving from Windows.</li>
+          <li>Chat apps have their own section instead of sitting under System.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-07-30">
       <description>
         <p>Opening the apps you installed.</p>

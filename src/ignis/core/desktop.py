@@ -17,6 +17,7 @@ DESKTOP_CATEGORIES = {
     Category.EMULATION: "Game;Emulator;",
     Category.MEDIA: "AudioVideo;",
     Category.STREAMING: "AudioVideo;",
+    Category.COMMUNICATION: "Network;InstantMessaging;",
     Category.SYSTEM: "System;",
 }
 

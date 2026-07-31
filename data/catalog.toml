@@ -1,9 +1,11 @@
 # Ignis app catalog — data only, no code.
 # Schema: SPEC.md §4.2. One bad entry is skipped with a logged warning.
 #
-# !! Every entry below is a SEED and must be verified on a real Bazzite
-# !! machine during Phase 2: check Flathub refs on flathub.org, and check
-# !! ujust recipe names against `ujust` output on current Bazzite.
+# Writing descriptions: the audience is someone who has just moved from
+# Windows and does not consider themselves technical. Say what the app does,
+# why they might want it, and — where it matters — when they can safely skip
+# it. Compare to the Windows equivalent when that makes it click faster.
+# Avoid jargon, and never assume they know what a Flatpak or a runtime is.
 
 # ── Gaming ────────────────────────────────────────────────────────────
 
@@ -11,8 +13,13 @@
 id = "heroic"
 name = "Heroic Games Launcher"
 summary = "Play your Epic, GOG and Amazon games"
-description = """Open-source launcher for Epic Games Store, GOG and Amazon \
-Prime Gaming libraries, with built-in Proton/Wine management."""
+description = """If you bought games on the Epic Games Store or GOG, or \
+claimed them free with Amazon Prime, this is how you play them here. It \
+signs into those stores, downloads your games, and quietly handles the work \
+of making Windows games run on Linux — you just press Play.
+
+Your Steam games do not need this. Steam is already installed and handles \
+them itself."""
 category = "gaming"
 hardware = []
 
@@ -21,11 +28,51 @@ type = "flathub"
 ref = "com.heroicgameslauncher.hgl"
 
 [[apps]]
+id = "lutris"
+name = "Lutris"
+summary = "All your games from every store in one list"
+description = """Gathers games from Steam, Epic, GOG, Battle.net and others \
+into a single library, and knows the specific tweaks a lot of older or \
+fussier games need to run properly on Linux.
+
+Worth it if you buy games in several different places and want one list \
+instead of four. It overlaps with Heroic — most people settle on one or the \
+other rather than both."""
+category = "gaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "net.lutris.Lutris"
+
+[[apps]]
+id = "prismlauncher"
+name = "Prism Launcher"
+summary = "Play and organise Minecraft (Java Edition)"
+description = """A friendlier way to run Minecraft Java Edition. You can keep \
+several separate setups side by side — a plain one, a heavily modded one for \
+the kids, another for a server you play on — without any of them interfering \
+with each other. It installs mod packs for you.
+
+You still sign in with your own Minecraft account; this does not include the \
+game itself."""
+category = "gaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "org.prismlauncher.PrismLauncher"
+
+[[apps]]
 id = "bottles"
 name = "Bottles"
-summary = "Run Windows software and games"
-description = """Run Windows applications in isolated, preconfigured \
-environments (bottles) using Wine."""
+summary = "Run Windows programs that have no Linux version"
+description = """For that one Windows program you still need. Each program \
+gets its own private, self-contained space, so a badly behaved one cannot \
+disturb anything else on your system.
+
+For games, Steam and Heroic usually do a better job — reach for Bottles when \
+it is ordinary Windows software rather than a game."""
 category = "gaming"
 hardware = []
 
@@ -36,9 +83,14 @@ ref = "com.usebottles.bottles"
 [[apps]]
 id = "protonup-qt"
 name = "ProtonUp-Qt"
-summary = "Install GE-Proton and other compatibility tools"
-description = """Install and manage GE-Proton, Luxtorpeda and other Steam \
-compatibility tools with a couple of clicks."""
+summary = "Extra compatibility versions for stubborn games"
+description = """Steam runs Windows games through a translation layer called \
+Proton. Occasionally a game behaves better on a community-improved version \
+of it, usually called GE-Proton. This installs those extra versions; you then \
+pick one for a specific game in Steam's own settings.
+
+Only worth installing if a particular game is misbehaving. If everything you \
+play already works, you do not need this."""
 category = "gaming"
 hardware = []
 
@@ -51,9 +103,14 @@ ref = "net.davidotek.pupgui2"
 [[apps]]
 id = "emudeck"
 name = "EmuDeck"
-summary = "All-in-one emulation setup"
-description = """Installs and configures a full retro-emulation environment \
-using Bazzite's built-in recipe."""
+summary = "Set up retro game consoles in one go"
+description = """Sets up everything needed to play retro console games: it \
+installs the emulators, creates a tidy folder layout for your game files, and \
+adds the games to Steam so they show up next to everything else.
+
+After installing, EmuDeck opens its own setup window where you choose which \
+consoles you want — follow that through to finish. You provide the game files \
+yourself; none are included."""
 category = "emulation"
 hardware = []
 
@@ -73,14 +130,14 @@ check_cmd = ["bash", "-c", 'compgen -G "$HOME/Applications/*EmuDeck*.AppImage" >
 [[apps]]
 id = "githublauncher"
 name = "GitHub Launcher"
-summary = "Install and update recompiled/decompiled PC ports"
-description = """Manages games and apps published on GitHub — including the \
-recomp and decomp PC ports such as Zelda 64: Recompiled — downloading them \
-and keeping them updated. Ignis installs the launcher itself; you pick the \
-games from inside it.
+summary = "Install fan-made PC versions of classic games"
+description = """A handful of classic games have been painstakingly rebuilt \
+to run natively on a modern PC, rather than being emulated. They look and run \
+far better than emulation does. This launcher finds those projects, installs \
+them, and keeps them up to date.
 
-Ports built this way need you to legally provide your own copy of the \
-original game."""
+You must legally own the original game and supply its files yourself. This is \
+a niche, enthusiast thing — most people can skip it."""
 category = "emulation"
 hardware = []
 
@@ -102,11 +159,30 @@ install_kind = "zip"
 # ── Media ─────────────────────────────────────────────────────────────
 
 [[apps]]
+id = "vlc"
+name = "VLC"
+summary = "The video player that plays absolutely everything"
+description = """The same VLC you probably used on Windows — the orange \
+traffic cone. It plays virtually any video or audio file you throw at it, \
+along with DVDs and network streams, using the ordinary familiar controls.
+
+A safe default if you simply want to double-click a video and watch it."""
+category = "media"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "org.videolan.VLC"
+
+[[apps]]
 id = "mpv"
 name = "mpv"
-summary = "Lightweight video player that plays everything"
-description = """Minimal, high-quality media player with excellent codec \
-support and hardware decoding."""
+summary = "A fast, minimal video player for keyboard users"
+description = """An extremely light and capable player that deliberately has \
+almost no buttons — you drive it with the keyboard and it plays anything \
+without fuss. Popular with people who find normal players cluttered.
+
+If you would rather have visible on-screen controls, install VLC instead."""
 category = "media"
 hardware = []
 
@@ -117,9 +193,14 @@ ref = "io.mpv.Mpv"
 [[apps]]
 id = "handbrake"
 name = "HandBrake"
-summary = "Convert videos to smaller files"
-description = """Video transcoder for converting media into modern, \
-space-efficient formats."""
+summary = "Shrink videos so they take up less space"
+description = """Converts videos into much smaller files that still look \
+good — handy when phone recordings or ripped discs are filling your drive. It \
+also converts awkward formats into something a TV or tablet will actually \
+play.
+
+The same HandBrake as on Windows, and it can use your graphics card to do the \
+work quickly."""
 category = "media"
 hardware = []
 
@@ -130,8 +211,13 @@ ref = "fr.handbrake.ghb"
 [[apps]]
 id = "jellyfin-player"
 name = "Jellyfin Media Player"
-summary = "Watch your Jellyfin library on this machine"
-description = """Desktop client for the Jellyfin media server."""
+summary = "Watch your own movie and TV collection"
+description = """Jellyfin is a free way to keep your own films and shows on a \
+computer at home and watch them on any screen in the house — think of it as \
+your own private Netflix. This is the app you watch with.
+
+It needs a Jellyfin server running somewhere on your network. If nobody has \
+set one up, this app has nothing to connect to."""
 category = "media"
 hardware = []
 
@@ -139,14 +225,35 @@ hardware = []
 type = "flathub"
 ref = "com.github.iwalton3.jellyfin-media-player"
 
-# ── Streaming ─────────────────────────────────────────────────────────
+# ── Streaming and recording ───────────────────────────────────────────
+
+[[apps]]
+id = "gpu-screen-recorder"
+name = "GPU Screen Recorder"
+summary = "Save a clip of what just happened"
+description = """Records your screen using your graphics card, so it barely \
+affects game performance. Its best trick is replay mode: it quietly keeps the \
+last few minutes in memory, and a hotkey saves them to a file — the same idea \
+as the clip button on a console, or GeForce Experience on Windows.
+
+Far simpler than OBS if all you want is to capture good moments."""
+category = "streaming"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.dec05eba.gpu_screen_recorder"
 
 [[apps]]
 id = "obs"
 name = "OBS Studio"
-summary = "Record your screen and stream"
-description = """Industry-standard software for screen recording and live \
-streaming, with hardware-encoder support."""
+summary = "Record your screen or broadcast live"
+description = """The standard tool for recording gameplay or going live on \
+Twitch and YouTube. It can do almost anything — overlays, multiple cameras, \
+scene switching — and is correspondingly fiddly to learn.
+
+If you only want to save clips of gameplay, GPU Screen Recorder is much \
+easier."""
 category = "streaming"
 hardware = []
 
@@ -157,9 +264,13 @@ ref = "com.obsproject.Studio"
 [[apps]]
 id = "sunshine"
 name = "Sunshine game streaming"
-summary = "Stream games from this PC to other devices (pairs with Moonlight)"
-description = """Self-hosted game-stream server using Bazzite's built-in \
-setup recipe. Use the Moonlight app on the receiving device."""
+summary = "Stream this PC's games to your other devices"
+description = """Lets this computer do the hard work while you play its games \
+from somewhere else in the house — a laptop, a TV, a tablet or a handheld. \
+The picture is sent over your home network with very little delay.
+
+Install Moonlight on whatever device you want to play on. Sunshine sets \
+itself up to start automatically with your computer."""
 category = "streaming"
 hardware = []
 
@@ -176,27 +287,130 @@ uninstall_args = ["disable"]
 # The recipe considers Sunshine set up when its user service is enabled.
 check_cmd = ["systemctl", "is-enabled", "--user", "app-dev.lizardbyte.app.Sunshine"]
 
-# ── System ────────────────────────────────────────────────────────────
-
 [[apps]]
-id = "lact"
-name = "LACT"
-summary = "AMD GPU control panel (fans, clocks, power)"
-description = """Monitor and tune AMD Radeon GPUs: fan curves, power limits \
-and clock profiles."""
-category = "system"
-hardware = ["amd"]
+id = "moonlight"
+name = "Moonlight"
+summary = "Play games running on another computer"
+description = """The other half of game streaming. Install this on the machine \
+you want to play *on*, and it connects to a gaming PC elsewhere in the house \
+that is running Sunshine.
+
+The game runs over there; the picture comes to you. Useful for playing \
+demanding games on a laptop or a TV that could never run them by itself."""
+category = "streaming"
+hardware = []
 
 [apps.source]
 type = "flathub"
-ref = "io.github.ilya_zlobintsev.LACT"
+ref = "com.moonlight_stream.Moonlight"
+
+# ── Chat ──────────────────────────────────────────────────────────────
+
+[[apps]]
+id = "vesktop"
+name = "Vesktop (Discord)"
+summary = "Discord, with screen sharing that carries sound"
+description = """A community-built version of Discord that fixes the main \
+annoyance on Linux: when you share your screen, your friends can actually \
+hear the game.
+
+It is the same Discord — your account, your servers, your friends — just a \
+better app for it. Recommended over the official version if you ever share \
+your screen."""
+category = "communication"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "dev.vencord.Vesktop"
+
+[[apps]]
+id = "discord"
+name = "Discord"
+summary = "Voice and text chat for gaming groups"
+description = """The chat app most gaming groups use: voice calls, text \
+channels, and screen sharing. This is the official version.
+
+One catch — sharing your screen with sound does not work properly here on \
+Linux. If you need that, install Vesktop instead; it logs into the same \
+account."""
+category = "communication"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.discordapp.Discord"
+
+# ── System ────────────────────────────────────────────────────────────
+
+[[apps]]
+id = "mission-center"
+name = "Mission Center"
+summary = "See what is slowing your computer down"
+description = """The equivalent of Task Manager on Windows. It shows how hard \
+your processor, memory, graphics card, drives and network are working, and \
+which programs are responsible.
+
+The first place to look when the machine feels sluggish or a fan will not \
+stop spinning."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "io.missioncenter.MissionCenter"
+
+[[apps]]
+id = "flatseal"
+name = "Flatseal"
+summary = "Give an app permission to see your files"
+description = """Apps on Linux run inside a protective box and can only reach \
+the folders they have been allowed to. Usually that is invisible and fine — \
+but occasionally a game launcher cannot see your second hard drive, or a \
+program cannot find your controller.
+
+This is where you grant that permission. A repair tool: you will not need it \
+until you do, and then you will be very glad it is there."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "flathub"
+ref = "com.github.tchx84.Flatseal"
+
+[[apps]]
+id = "openrgb"
+name = "OpenRGB"
+summary = "Control the lighting inside your PC"
+description = """Sets the colours and effects of RGB lighting in your case, \
+fans, memory, keyboard and mouse — all from one place, instead of a separate \
+app from each manufacturer.
+
+This is the Linux answer to tools like iCUE, Aura Sync or Mystic Light. Purely \
+cosmetic; skip it if your machine has no lighting."""
+category = "system"
+hardware = []
+
+[apps.source]
+type = "ujust"
+# Verified against Bazzite's 82-bazzite-apps.just on 2026-07-30: the recipe
+# is `openrgb ACTION=""` (aliased to install-openrgb), same
+# status | install | uninstall shape as EmuDeck, installing an AppImage
+# into ~/Applications.
+recipe = "install-openrgb"
+args = ["install"]
+uninstall_args = ["uninstall"]
+check_cmd = ["bash", "-c", 'compgen -G "$HOME/Applications/*OpenRGB*.AppImage" > /dev/null']
 
 [[apps]]
 id = "coolercontrol"
 name = "CoolerControl"
-summary = "Fan and cooling control"
-description = """Monitor temperatures and control fans, pumps and RGB on \
-supported hardware."""
+summary = "Make your PC quieter, or keep it cooler"
+description = """Controls how fast your case and cooler fans spin depending on \
+temperature — near-silent when you are browsing, ramping up only when a game \
+needs it.
+
+Worth installing if your computer is noisier than you would like."""
 category = "system"
 hardware = []
 
@@ -205,13 +419,17 @@ type = "flathub"
 ref = "org.coolercontrol.CoolerControl"
 
 [[apps]]
-id = "discord"
-name = "Discord"
-summary = "Voice, video and text chat"
-description = """Chat app for communities and friends."""
+id = "lact"
+name = "LACT"
+summary = "Monitor and tune an AMD graphics card"
+description = """Shows what your AMD graphics card is doing — temperature, \
+speed, power draw — and lets you adjust its fan curve or power limit.
+
+Mainly useful if your PC runs hot or loud under load. It is perfectly safe to \
+install and simply look at, and safe to ignore entirely."""
 category = "system"
-hardware = []
+hardware = ["amd"]
 
 [apps.source]
 type = "flathub"
-ref = "com.discordapp.Discord"
+ref = "io.github.ilya_zlobintsev.LACT"

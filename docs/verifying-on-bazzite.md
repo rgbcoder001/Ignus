@@ -275,8 +275,18 @@ file is its own; it will refuse to delete a desktop file without it.
 ## Catalog verification checklist
 
 Every entry in `data/catalog.toml` needs on-machine confirmation before it
-ships — see the file's own `VERIFY` comments for specifics. Quick ways to
-check each source type:
+ships. The two `ujust`-based entries are the ones most likely to break, since
+they depend on Bazzite's own recipes:
+
+- [ ] `ujust install-emudeck install` — installs without opening a menu
+- [ ] `ujust setup-sunshine enable` — installs and enables the service
+- [ ] `ujust install-openrgb install` — installs without opening a menu
+
+Each should finish without ever asking a question. If one drops into a menu,
+Ignis will report it as a failure rather than a silent success — that is
+working as intended, but the catalog entry then needs a different action.
+
+Quick ways to check each source type:
 
 - **flathub**: `flatpak remote-info flathub <ref>` — nonzero exit means the
   ref is wrong or renamed on Flathub.

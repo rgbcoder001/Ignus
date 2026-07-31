@@ -27,6 +27,26 @@ def test_shipped_catalog_ids_are_unique():
     assert len(ids) == len(set(ids))
 
 
+def test_every_app_explains_itself():
+    """Descriptions are the product here: the audience is someone new to
+    Linux deciding whether they want this app at all."""
+    for app in load_catalog(paths.catalog_path()):
+        assert app.description, f"{app.id} has no description"
+        assert len(app.description) >= 120, (
+            f"{app.id}'s description is too thin to help someone decide"
+        )
+        assert app.summary, f"{app.id} has no summary"
+        assert len(app.summary) <= 60, (
+            f"{app.id}'s summary is too long for a list row: {app.summary!r}"
+        )
+
+
+def test_summaries_are_not_just_the_app_name():
+    """A summary has to say what the thing does, not repeat its title."""
+    for app in load_catalog(paths.catalog_path()):
+        assert app.summary.strip().lower() != app.name.strip().lower()
+
+
 def test_every_ujust_entry_specifies_a_non_interactive_action():
     """A ujust recipe with no action opens a menu needing a terminal, which
     Ignis cannot answer — it either fails or, worse, exits 0 having done

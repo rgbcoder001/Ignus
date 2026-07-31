@@ -38,6 +38,7 @@ CATEGORY_TITLES = {
     Category.EMULATION: "Emulation",
     Category.MEDIA: "Media",
     Category.STREAMING: "Streaming",
+    Category.COMMUNICATION: "Chat",
     Category.SYSTEM: "System",
 }
 

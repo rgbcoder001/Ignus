@@ -30,6 +30,7 @@ class Category(StrEnum):
     EMULATION = "emulation"
     MEDIA = "media"
     STREAMING = "streaming"
+    COMMUNICATION = "communication"
     SYSTEM = "system"
 
 

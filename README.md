@@ -54,12 +54,22 @@ the log folder — there are no dead ends.
 Ignis installs from four places, and which one an app uses is an
 implementation detail you never have to think about:
 
-| Source | Examples |
+| Section | What's in it |
 |---|---|
-| Flathub | Heroic, Bottles, OBS Studio, mpv, HandBrake, Discord, LACT |
-| Bazzite's own setup recipes | EmuDeck, Sunshine game streaming |
-| GitHub releases | [GitHub Launcher](https://github.com/SirDiabo/GithubLauncher), which manages recompiled PC ports |
-| Bundled setup scripts | Small fixes and configuration tweaks |
+| Gaming | Heroic, Lutris, Prism Launcher (Minecraft), Bottles, ProtonUp-Qt |
+| Emulation | EmuDeck, GitHub Launcher |
+| Media | VLC, mpv, HandBrake, Jellyfin |
+| Streaming | GPU Screen Recorder, OBS Studio, Sunshine, Moonlight |
+| Chat | Vesktop, Discord |
+| System | Mission Center, Flatseal, OpenRGB, CoolerControl, LACT |
+
+Every app says in plain language what it does, why you might want it, and
+when you can safely skip it — written for people arriving from Windows, not
+for people who already know Linux.
+
+Behind the scenes these come from Flathub, Bazzite's own `ujust` setup
+recipes, GitHub releases, or bundled setup scripts — but which one an app
+uses is an implementation detail you never have to think about.
 
 Adding or correcting an app is a change to one data file,
 [`data/catalog.toml`](data/catalog.toml) — no code required.
